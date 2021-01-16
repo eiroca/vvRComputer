@@ -121,6 +121,15 @@ type
 
   EMode = (imp, imm, ind_reg, ind_abs, reg, reg_i, cjp_abs, jmp_abs, abs);
 
+  TFlags = array of boolean;
+
+  PIRQ = ^RIRQ;
+  RIRQ = record
+    masked: boolean;
+    active: boolean;
+  end;
+  TIRQs = array of RIRQ;
+
   PCPUInfo = ^RCPUInfo;
   RCPUInfo = record
     dataSize: integer;
@@ -135,6 +144,9 @@ type
     extrasName: array of string;
     extrasSize: array of integer;
     littleEndian: boolean;
+    numIRQs: integer;
+    IRQsName: array of string;
+    IRQsNMI: array of boolean;
   end;
 
   POpcode = ^ROpcode;
@@ -171,8 +183,8 @@ type
   RCPUStatus = record
     opcode: POpcode;
     regs: array of iSize32;
-    flags: array of bit;
     extras: array of iSize32;
+    flags: TFlags;
   end;
 
 type
@@ -214,26 +226,35 @@ type
   { TCPU }
 
   generic TCPU<AddrType> = class
-  protected
-    // Emulator status
-    opers: int64;
-    cycles: int64;
-    isHalted: boolean;
   private
     // Emulator hooks
     FHalt: HaltCall;
     FTrace: TraceCall;
     FCPUInfo: RCPUInfo;
   protected
-    // CPU def
+    // Emulator status
+    opers: int64;
+    cycles: int64;
+    isHalted: boolean;
+  protected
+    // CPU status & Regs
     PC: AddrType;
-    littleEndian: boolean;
+    SP: AddrType;
+    F: array of boolean;
+    IRQs: TIRQs;
+    interruptAllowed: boolean;
   public
     constructor Create;
+  protected
+    procedure SetIRQ(int: integer; a: boolean);
   public
     property Halt: HaltCall read FHalt write FHalt;
     property Trace: TraceCall read FTrace write FTrace;
     property CPUInfo: RCPUInfo read FCPUInfo;
+    property IRQ[i: integer]: boolean write setIRQ;
+  protected
+    procedure CheckIRQs(); virtual;
+    procedure DoIRQ(int: integer); virtual;
   protected // Abstract
     procedure GetCPUInfo(var info: RCPUInfo); virtual; abstract;
     procedure Reset; virtual; abstract;
@@ -245,6 +266,8 @@ type
   public
     function AllocCPUStatus: PCPUStatus;
     procedure GetStatus(var status: RCPUStatus; fillExtra: boolean = True); virtual; abstract;
+    function GetIRQs: TIRQs;
+    function GetInterruptAllowed: boolean;
   end;
 
 
@@ -457,8 +480,54 @@ end;
 { TCPU }
 
 constructor TCPU.Create;
+var
+  i: integer;
 begin
   GetCPUInfo(FCPUInfo);
+  with FCPUInfo do begin
+    SetLength(F, numFlags);
+    SetLength(IRQs, numIRQs);
+    for i := 0 to numIRQs - 1 do begin
+      with IRQs[i] do begin
+        active := False;
+        masked := False;
+      end;
+    end;
+  end;
+end;
+
+procedure TCPU.SetIRQ(int: integer; a: boolean);
+begin
+  with FCPUInfo do begin
+    if (int >= 0) and (int < numIRQs) then begin
+      IRQs[int].active := a;
+    end;
+  end;
+end;
+
+procedure TCPU.CheckIRQs();
+var
+  NMI: boolean;
+  i: integer;
+begin
+  with FCPUInfo do begin
+    for i := 0 to numIRQs - 1 do begin
+      with IRQs[i] do begin
+        if IRQs[i].active then begin
+          NMI := IRQsNMI[i];
+          if (NMI) or ((masked = False) and interruptAllowed) then begin
+            DoIRQ(i);
+          end;
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure TCPU.DoIRQ(int: integer);
+begin
+  interruptAllowed := False;
+  IRQs[int].active := False;
 end;
 
 function TCPU.Run(var addr: AddrType; aTrace: boolean = False; steps: integer = -1): integer;
@@ -526,12 +595,23 @@ begin
   end;
 end;
 
+function TCPU.GetIRQs: TIRQs;
+begin
+  Result := IRQs;
+end;
+
+function TCPU.GetInterruptAllowed: boolean;
+begin
+  Result := interruptAllowed;
+end;
+
 function TCPU_ClassA.Step: POpcode;
 begin
   Inc(opers);
   Result := @OpCodes[ReadMem(PC)];
   PC := (PC + 1) and $FFFF;
   Result^.code();
+  CheckIRQs();
 end;
 
 procedure TCPU_ClassA.DecodeInst(var addr: uint16; var inst: RInstuction; incAddr: boolean);

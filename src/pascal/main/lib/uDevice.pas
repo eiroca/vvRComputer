@@ -65,6 +65,7 @@ const
   DU_CPU: DeviceIDType = 1;
   DU_CPU_Generic: DeviceSubType = 0;
   DU_CPU_8080: DeviceSubType = 1;
+  DU_CPU_8085: DeviceSubType = 2;
 
   DU_VDU: DeviceIDType = 2;
   DU_VDU_Generic: DeviceSubType = 0;
@@ -770,6 +771,7 @@ end;
 constructor T8080ProcessorUnit.Create(aDCU: TDeviceUnit);
 begin
   inherited Create(aDCU);
+  def.conf.devSubType := DU_CPU_8080;
   cpu := TCPU_8080.Create;
   cpu.ReadMem := @ReadMemoryCall;
   cpu.WriteMem := @WriteMemoryCall;
@@ -818,7 +820,7 @@ begin
     end;
     s := s + ' Flags: ';
     for i := 0 to numFlags - 1 do begin
-      if trace.flags[i] <> 0 then s := s + flagsName[i] else s := s + ' ';
+      if trace.flags[i] then s := s + flagsName[i] else s := s + ' ';
     end;
     for i := 0 to numExtras - 1 do begin
       s := s + ' ' + extrasName[i] + ': $' + IntToHex(trace.extras[i], extrasSize[i] * 2);
@@ -838,6 +840,7 @@ end;
 constructor T8085ProcessorUnit.Create(aDCU: TDeviceUnit);
 begin
   inherited Create(aDCU);
+  def.conf.devSubType := DU_CPU_8085;
   cpu := TCPU_8085.Create;
   cpu.ReadMem := @ReadMemoryCall;
   cpu.WriteMem := @WriteMemoryCall;
@@ -881,7 +884,6 @@ begin
   inherited Create;
   DCU := aDCU;
   def.conf.devID := DU_CPU;
-  def.conf.devSubType := DU_CPU_8080;
   devNum := DCU.AddDevice(Self);
   def.regRead := @RegisterRead;
   def.regWrite := @RegisterWrite;

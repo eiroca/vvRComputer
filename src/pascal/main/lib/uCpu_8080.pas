@@ -34,9 +34,6 @@ const
   Flag_S = 7;
 
 type
-  TFlags = array [0..7] of boolean;
-
-type
 
   { TCPU_8080 }
 
@@ -50,11 +47,6 @@ type
     E: iSize8;
     H: iSize8;
     L: iSize8;
-    SP: iSize16;
-    F: TFlags;
-  protected
-    // 8080 Status
-    interruptAllowed: boolean;
   private
     // Emulator hooks
     FReadIO: ReadIOCall;
@@ -311,6 +303,8 @@ type
     procedure op_XTHL;
   public
     constructor Create;
+  protected
+    procedure DoIRQ(int: integer); override;
   public
     procedure Reset; override;
   protected
@@ -595,6 +589,7 @@ begin
   PC := 0;
   FlagsFromByte(0);
   isHalted := False;
+  interruptAllowed := False;
   opers := 0;
   cycles := 0;
   states := 0;
@@ -615,7 +610,7 @@ begin;
     regs[7] := PC;
     regs[8] := SP;
     for i := 0 to 7 do begin
-      flags[i] := bool_bit[F[i]];
+      flags[i] := F[i];
     end;
     if (fillExtra) then begin
       extras[0] := ReadMem(PC);
@@ -644,6 +639,9 @@ begin;
     extrasName := ['(PC)', '(PC+1)', '(PC+2)', '(BC)', '(DE)', '(HL)', '(SP)'];
     extrasSize := [1, 1, 1, 1, 1, 1, 2];
     littleEndian := True;
+    numIRQs := 8;
+    IRQsName := ['Reset', 'RST_1', 'RST_2', 'RST_3', 'RST_4', 'RST_5', 'RST_6', 'RST_7'];
+    IRQsNMI := [True, False, False, False, False, False, False, False];
   end;
 end;
 
@@ -663,6 +661,21 @@ begin
   Result := 0;
   for i := 0 to 7 do begin
     if F[i] then Result := Result or bit_val[i];
+  end;
+end;
+
+procedure TCPU_8080.DoIRQ(int: integer);
+begin
+  inherited;
+  case (int) of
+    0: op_RST_0;
+    1: op_RST_1;
+    2: op_RST_2;
+    3: op_RST_3;
+    4: op_RST_4;
+    5: op_RST_5;
+    6: op_RST_6;
+    7: op_RST_7;
   end;
 end;
 
@@ -708,7 +721,7 @@ var
 begin
   b1 := ReadMem(PC);
   PC := (PC + 1) and $FFFF;
-  A := ReadIO(b1);
+  if Assigned(ReadIO) then  A := ReadIO(b1);
   Inc(cycles, 3);
   Inc(states, 10);
 end;
@@ -719,7 +732,7 @@ var
 begin
   b1 := ReadMem(PC);
   PC := (PC + 1) and $FFFF;
-  WriteIO(b1, A);
+  if Assigned(WriteIO) then  WriteIO(b1, A);
   Inc(cycles, 3);
   Inc(states, 10);
 end;

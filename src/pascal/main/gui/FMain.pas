@@ -29,27 +29,29 @@ type
   { TfmMain }
 
   TfmMain = class(TForm)
+    bStatus: TButton;
     cbTrace: TCheckBox;
-    iDisAss: TButton;
     dgDevices: TDrawGrid;
-    iAdrStart: TMaskEdit;
     iAdrEnd: TMaskEdit;
+    iAdrStart: TMaskEdit;
+    iBlockID: TMaskEdit;
+    iDisAss: TButton;
     iDump: TButton;
     iExecute: TButton;
     Label1: TLabel;
-    iBlockID: TMaskEdit;
     Label2: TLabel;
-    mMemory: TMemo;
-    mCPU: TMemo;
     mOutput: TMemo;
+    mTools: TMemo;
+    mCPU: TMemo;
+    Panel1: TPanel;
     Panel2: TPanel;
     pcComputer: TPageControl;
-    Panel1: TPanel;
     StatusBar1: TStatusBar;
     TabSheet1: TTabSheet;
     TabSheet2: TTabSheet;
     TabSheet3: TTabSheet;
     TabSheet4: TTabSheet;
+    procedure bStatusClick(Sender: TObject);
     procedure iExecuteClick(Sender: TObject);
     procedure iDisAssClick(Sender: TObject);
     procedure iDumpClick(Sender: TObject);
@@ -58,7 +60,7 @@ type
     procedure FormDestroy(Sender: TObject);
   private
     DCU: TDeviceUnit;
-    CPU: T8080ProcessorUnit;
+    CPU: T8085ProcessorUnit;
     VPU: TVideoUnit;
     SPU: TSoundUnit;
     procedure HandleDebug(var Msg: TLMessage); message WM_DEVICE_MESSAGE;
@@ -109,7 +111,7 @@ begin
   if not DCU.LoadBank(ROM_END, 'ROM\' + ROMBANK_01) then begin
     mOutput.Lines.Add('ROM (' + ROMBANK_01 + ') MISSING!');
   end;
-  CPU := T8080ProcessorUnit.Create(DCU);
+  CPU := T8085ProcessorUnit.Create(DCU);
   CPU.MessageHandler := fmMain.Handle;
   VPU := TVideoUnit.Create(DCU);
   VPU.MessageHandler := fmMain.Handle;
@@ -133,6 +135,26 @@ begin
   end;
 end;
 
+procedure TfmMain.bStatusClick(Sender: TObject);
+var
+  i: integer;
+  IRQs: TIRQs;
+  s: string;
+begin
+  mCPU.Lines.Clear;
+  IRQs := CPU.cpu.GetIRQs();
+  with  CPU.cpu, CPUInfo do begin
+    mCPU.Lines.Add('Interrupts are ' + BoolToStr(GetInterruptAllowed(), 'enabled', 'disabled'));
+    for i := 0 to numIRQs - 1 do begin
+      s := IRQsName[i] + ' is ' + BoolToStr(IRQs[i].active, 'on', 'off');
+      if not IRQsNMI[i] then begin
+        s := s + ' and ' + BoolToStr(IRQs[i].masked, '', 'not ') + 'masked';
+      end;
+      mCPU.Lines.Add(s);
+    end;
+  end;
+end;
+
 procedure TfmMain.iDisAssClick(Sender: TObject);
 var
   node: TAvgLvlTreeNode;
@@ -153,40 +175,40 @@ begin
     instList := TInstructionList.Create;
     memMap := TMemoryMap.Create;
     try
-      mCPU.Lines.BeginUpdate;
+      mTools.Lines.BeginUpdate;
       addr := adrStart;
       cnt := CPU.cpu.Disassemble(addr, adrEnd, instList, memMap);
       // Code Entries
-      mCPU.Lines.Add(';');
-      mCPU.Lines.Add('; Code references');
-      mCPU.Lines.Add(';');
+      mTools.Lines.Add(';');
+      mTools.Lines.Add('; Code references');
+      mTools.Lines.Add(';');
       for Node in memMap do begin
         memInfo := PMemoryArea(Node.Data);
         with memInfo^ do begin
           if (refCode in usage) then begin
             s := IntToHex(addrStart, 4);
             s := 'C' + s + TAB + '.equ' + TAB + '$' + s;
-            mCPU.Lines.Add(s);
+            mTools.Lines.Add(s);
           end;
         end;
       end;
       // Data Entries
-      mCPU.Lines.Add(';');
-      mCPU.Lines.Add('; Data references');
-      mCPU.Lines.Add(';');
+      mTools.Lines.Add(';');
+      mTools.Lines.Add('; Data references');
+      mTools.Lines.Add(';');
       for Node in memMap do begin
         memInfo := PMemoryArea(Node.Data);
         with memInfo^ do begin
           if (refData in usage) then begin
             s := IntToHex(addrStart, 4);
             s := 'D' + s + TAB + '.equ' + TAB + '$' + s + TAB + TAB + '; ' + IntToHex(CPU.cpu.ReadMem(addrStart), 2);
-            mCPU.Lines.Add(s);
+            mTools.Lines.Add(s);
           end;
         end;
       end;
-      mCPU.Lines.Add(';');
-      mCPU.Lines.Add('; Code');
-      mCPU.Lines.Add(';');
+      mTools.Lines.Add(';');
+      mTools.Lines.Add('; Code');
+      mTools.Lines.Add(';');
       if (cnt > 0) then begin
         for i := 0 to cnt - 1 do begin
           inst := instList[i];
@@ -220,14 +242,14 @@ begin
               end;
             end;
             s := s + TAB + Format(def^.fmt, [param1]) + TAB + TAB + cmt;
-            mCPU.Lines.Add(s);
+            mTools.Lines.Add(s);
           end;
         end;
       end;
       // Memory Map
       memMap.Pack;
-      mCPU.Lines.Add('');
-      mCPU.Lines.Add('Memory Map:');
+      mTools.Lines.Add('');
+      mTools.Lines.Add('Memory Map:');
       for Node in memMap do begin
         memInfo := PMemoryArea(Node.Data);
         with memInfo^ do begin
@@ -238,11 +260,11 @@ begin
           for mu in (usage * [mData, mCode]) do begin
             s := s + ' ' + GetEnumName(TypeInfo(EMemoryUsage), Ord(mu));
           end;
-          mCPU.Lines.Add(s);
+          mTools.Lines.Add(s);
         end;
       end;
     finally
-      mCPU.Lines.EndUpdate;
+      mTools.Lines.EndUpdate;
       FreeAndNil(instList);
       FreeAndNil(memMap);
     end;
@@ -362,7 +384,7 @@ var
 begin
   MsgStr := PChar(Msg.wparam);
   MsgPasStr := StrPas(MsgStr);
-  mCPU.Lines.Add(MsgPasStr);
+  mTools.Lines.Add(MsgPasStr);
   StrDispose(MsgStr);
 end;
 
@@ -391,7 +413,7 @@ begin
       Inc(base);
       Inc(addr);
     end;
-    mMemory.Lines.Add(sb);
+    mTools.Lines.Add(sb);
   end;
 end;
 
@@ -415,7 +437,7 @@ begin
         Inc(addr);
         Inc(Base);
       end;
-      mMemory.Lines.Add(sb);
+      mTools.Lines.Add(sb);
     end;
   end;
 end;

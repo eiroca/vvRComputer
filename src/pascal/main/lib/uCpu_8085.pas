@@ -23,21 +23,29 @@ uses
   Classes, SysUtils;
 
 type
-  ReadMemoryCall = function(const address: word): byte of object;
-  WriteMemoryCall = procedure(const address: word; const val: byte) of object;
-  ReadIOCall = function(const address: byte): byte of object;
-  WriteIOCall = procedure(const address: byte; const val: byte) of object;
-  HaltCall = procedure() of object;
+  ReadSerialCall = function(): boolean of object;
+  WriteSerialCall = procedure(d: boolean) of object;
 
 const
   Flag_V = 1;
   Flag_K = 5;
+
+  IRQ_RST75 = 1;
+  IRQ_RST65 = 2;
+  IRQ_RST55 = 3;
 
 type
 
   { TCPU_8085 }
 
   TCPU_8085 = class(TCPU_8080)
+  private
+    // Emulator hooks
+    FReadSerial: ReadSerialCall;
+    FWriteSerial: WriteSerialCall;
+  public
+    property ReadSerial: ReadSerialCall read FReadSerial write FReadSerial;
+    property WriteSerial: WriteSerialCall read FWriteSerial write FWriteSerial;
   protected
     procedure op_DSUB;
     procedure op_ARHL;
@@ -213,6 +221,10 @@ type
     procedure op_RST_5;
     procedure op_RST_6;
     procedure op_RST_7;
+    procedure op_RST_75;
+    procedure op_RST_65;
+    procedure op_RST_55;
+    procedure op_RST_45;
     procedure op_SBB_A;
     procedure op_SBB_B;
     procedure op_SBB_C;
@@ -245,7 +257,8 @@ type
   public
     constructor Create;
   protected
-    procedure GetCPUInfo(var info: RCPUInfo);
+    procedure DoIRQ(int: integer); override;
+    procedure GetCPUInfo(var info: RCPUInfo); override;
   end;
 
 implementation
@@ -517,6 +530,28 @@ begin;
   inherited;
   with info do begin
     flagsName := ['C', 'V', 'P', '-', 'H', 'K', 'Z', 'S'];
+    numIRQs := 12;
+    IRQsName := ['Reset', 'RST7.5', 'RST6.5', 'RST5.5', 'TRAP', 'RST_1', 'RST_2', 'RST_3', 'RST_4', 'RST_5', 'RST_6', 'RST_7'];
+    IRQsNMI := [True, False, False, False, True, False, False, False, False, False, False, False];
+  end;
+end;
+
+procedure TCPU_8085.DoIRQ(int: integer);
+begin
+  inherited;
+  case (int) of
+    0: op_RST_0;
+    1: op_RST_75;
+    2: op_RST_65;
+    3: op_RST_55;
+    4: op_RST_45;
+    5: op_RST_1;
+    6: op_RST_2;
+    7: op_RST_3;
+    8: op_RST_4;
+    9: op_RST_5;
+    10: op_RST_6;
+    11: op_RST_7;
   end;
 end;
 
@@ -587,33 +622,43 @@ begin
 end;
 
 procedure TCPU_8085.op_RIM;
+var
+  r: byte;
+  s: boolean;
 begin
   // Read Interrupt Mask and serial data into A
-  // m_AF.b.h = get_rim_value();
-  // if we have remembered state from taking a TRAP, fix up the IE flag here
-  // if (m_trap_im_copy & 0x80)    m_AF.b.h = (m_AF.b.h & ~IM_IE) | (m_trap_im_copy & IM_IE);
-  // m_trap_im_copy = 0;
+  if Assigned(ReadSerial) then s := ReadSerial() else s := False;
+  r := 0;
+  if (s) then r := r or bit_val[7];
+  if (IRQs[IRQ_RST75].active) then r := r or bit_val[6];
+  if (IRQs[IRQ_RST65].active) then r := r or bit_val[5];
+  if (IRQs[IRQ_RST65].active) then r := r or bit_val[4];
+  if interruptAllowed then r := r or bit_val[3];
+  if (IRQs[IRQ_RST75].masked) then r := r or bit_val[2];
+  if (IRQs[IRQ_RST65].masked) then r := r or bit_val[1];
+  if (IRQs[IRQ_RST65].masked) then r := r or bit_val[0];
+  A := r;
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8085.op_SIM;
+var
+  r: byte;
+  s: boolean;
 begin
   // Set Interrupt Mask and serial data from A;
-  // if bit 3 is set, bits 0-2 become the new masks
-  // if (m_AF.b.h & 0x08)        {
-  //   m_im &= ~(IM_M55 | IM_M65 | IM_M75 | IM_I55 | IM_I65);
-  //   m_im |= m_AF.b.h & (IM_M55 | IM_M65 | IM_M75);
-  // update live state based on the new masks
-  //   if ((m_im & IM_M55) == 0 && m_irq_state[I8085_RST55_LINE])            m_im |= IM_I55;
-  //   if ((m_im & IM_M65) == 0 && m_irq_state[I8085_RST65_LINE])            m_im |= IM_I65;
-  // }
-  // bit if 4 is set, the 7.5 flip-flop is cleared
-  // if (m_AF.b.h & 0x10)          m_im &= ~IM_I75;
-  // if bit 6 is set, then bit 7 is the new SOD state
-  // if (m_AF.b.h & 0x40)          set_sod(m_AF.b.h >> 7);
-  // check for revealed interrupts
-  // check_for_interrupts();
+  r := A;
+  if (Assigned(WriteSerial)) and ((r and bit_val[6]) <> 0) then begin
+    s := (r and bit_val[7]) <> 0;
+    WriteSerial(s);
+  end;
+  if ((r and bit_val[4]) <> 0) then IRQs[IRQ_RST75].active := False;
+  if ((r and bit_val[3]) <> 0) then begin
+    IRQs[IRQ_RST75].masked := ((r and bit_val[2]) <> 0);
+    IRQs[IRQ_RST65].masked := ((r and bit_val[1]) <> 0);
+    IRQs[IRQ_RST55].masked := ((r and bit_val[0]) <> 0);
+  end;
   Inc(cycles);
   Inc(states, 4);
 end;
@@ -840,6 +885,50 @@ begin
   SP := (SP - 1) and $FFFF;
   WriteMem(SP, PC and $FF);
   PC := $0038;
+  Inc(cycles, 3);
+  Inc(states, 12);
+end;
+
+procedure TCPU_8085.op_RST_75;
+begin
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC shr 8);
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC and $FF);
+  PC := $003C;
+  Inc(cycles, 3);
+  Inc(states, 12);
+end;
+
+procedure TCPU_8085.op_RST_65;
+begin
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC shr 8);
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC and $FF);
+  PC := $0034;
+  Inc(cycles, 3);
+  Inc(states, 12);
+end;
+
+procedure TCPU_8085.op_RST_55;
+begin
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC shr 8);
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC and $FF);
+  PC := $002C;
+  Inc(cycles, 3);
+  Inc(states, 12);
+end;
+
+procedure TCPU_8085.op_RST_45;
+begin
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC shr 8);
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC and $FF);
+  PC := $0024;
   Inc(cycles, 3);
   Inc(states, 12);
 end;
