@@ -22,13 +22,14 @@ uses
   {$ifdef unix}
   cthreads,
   {$endif}
-  uCPU_8080,
+  uCPU, uCPU_8080, uCPU_8085,
   AvgLvlTree, typinfo,
   LMessages, LCLIntf, LCLType, LCLProc,
   Classes, SysUtils;
 
 const
   WM_DEVICE_MESSAGE = LM_USER + 2020;
+  WM_CPU_TRACE = LM_USER + 2021;
 
 type
 
@@ -139,11 +140,14 @@ type
   end;
 
 type
-  BlockDataType = array[BlockOffset] of byte;
+  EBlockPerm = (pRead, pWrite);
+  BlockData = array[BlockOffset] of byte;
+  BlockPerms = set of EBlockPerm;
 
   TBlock = class
     id: BlockNum;
-    Data: BlockDataType;
+    perm: BlockPerms;
+    Data: BlockData;
   end;
 
 type
@@ -158,6 +162,10 @@ const
 
 type
   TStatusEvent = procedure(Status: string) of object;
+
+const
+  MAX_WAITS: integer = 100;
+  WAIT_TIME: integer = 50;
 
 type
   TDeviceUnit = class;
@@ -200,7 +208,7 @@ type
     function Wait: RegisterValue; virtual;
     procedure DoInterrupt(id: InterruptNum); virtual;
     procedure DoRegisterWrite(reg: RegisterNum; val: RegisterValue); virtual;
-    procedure DoRegisterRead(reg: RegisterNum); virtual;
+    function DoRegisterRead(reg: RegisterNum): RegisterValue; virtual;
     procedure DoSignal(s: SignalNum; p: SignalValue); virtual;
   protected
     function SignalReset(p: SignalValue): SignalValue; virtual;
@@ -250,12 +258,11 @@ type
   private
     function ReadMemoryCall(const address: word): byte;
     procedure WriteMemoryCall(const address: word; const val: byte);
-    function ReadIOCall(const address: byte): byte;
-    procedure WriteIOCall(const address: byte; const val: byte);
-    procedure HaltCall;
   protected
+
+    procedure logTrace(Msg: string);
     procedure Reset; virtual;
-    procedure CopyBlock(const srcBnak, dstBank: NumBank);
+    procedure CopyBlock(const srcBank, dstBank: BlockNum);
     procedure RegisterWrite(reg: RegisterNum; p: RegisterValue); virtual;
     function RegisterRead(reg: RegisterNum): RegisterValue; virtual;
   protected
@@ -269,6 +276,25 @@ type
     cpu: TCPU_8080;
   public
     constructor Create(aDCU: TDeviceUnit);
+    function ReadIOCall(const address: byte): byte;
+    procedure WriteIOCall(const address: byte; const val: byte);
+    procedure HaltCall;
+    procedure TraceCPU(const trace: RCPUStatus);
+  protected
+    procedure Reset; override;
+  end;
+
+  { T8085ProcessorUnit }
+
+  T8085ProcessorUnit = class(TProcessorUnit)
+  public
+    cpu: TCPU_8085;
+  public
+    constructor Create(aDCU: TDeviceUnit);
+    function ReadIOCall(const address: byte): byte;
+    procedure WriteIOCall(const address: byte; const val: byte);
+    procedure HaltCall;
+    procedure TraceCPU(const trace: RCPUStatus);
   protected
     procedure Reset; override;
   end;
@@ -346,39 +372,39 @@ begin
             with cmd^ do begin
               status := cRunning;
               FStatus := dCommand;
-              case (cmdType) of
-                noop: begin
-                end;
-                interrupt: begin
-                  if Assigned(def.interrupt) then begin
-                    def.interrupt(int);
-                  end
-                  else begin
-                    logMessage(ClassName + ' Interrupt ' + IntToStr(int));
+              if (cmdType <> noop) then begin
+                case (cmdType) of
+                  interrupt: begin
+                    if Assigned(def.interrupt) then begin
+                      def.interrupt(int);
+                    end
+                    else begin
+                      logMessage(ClassName + ' Interrupt ' + IntToStr(int));
+                    end;
                   end;
-                end;
-                readReg: begin
-                  if Assigned(def.regRead) then begin
-                    RetVal := def.regRead(regRead);
-                  end
-                  else begin
-                    logMessage(ClassName + ' RegisterRead ' + IntToStr(regRead));
+                  readReg: begin
+                    if Assigned(def.regRead) then begin
+                      RetVal := def.regRead(regRead);
+                    end
+                    else begin
+                      logMessage(ClassName + ' RegisterRead ' + IntToStr(regRead));
+                    end;
                   end;
-                end;
-                writeReg: begin
-                  if Assigned(def.regWrite) then begin
-                    def.regWrite(regWrite, regValue);
-                  end
-                  else begin
-                    logMessage(ClassName + ' RegisterWrite ' + IntToStr(regWrite) + ' <- $' + IntToHex(regValue, 4));
+                  writeReg: begin
+                    if Assigned(def.regWrite) then begin
+                      def.regWrite(regWrite, regValue);
+                    end
+                    else begin
+                      logMessage(ClassName + ' RegisterWrite ' + IntToStr(regWrite) + ' <- $' + IntToHex(regValue, 4));
+                    end;
                   end;
-                end;
-                signal: begin
-                  if Assigned(def.signals[signalNum]) then begin
-                    RetVal := def.signals[signalNum](signalVal);
-                  end
-                  else begin
-                    logMessage(ClassName + ' Signal ' + IntToStr(signalNum) + ' $' + IntToHex(signalVal, 4));
+                  signal: begin
+                    if Assigned(def.signals[signalNum]) then begin
+                      RetVal := def.signals[signalNum](signalVal);
+                    end
+                    else begin
+                      logMessage(ClassName + ' Signal ' + IntToStr(signalNum) + ' $' + IntToHex(signalVal, 4));
+                    end;
                   end;
                 end;
               end;
@@ -438,7 +464,7 @@ begin
   Result := 0;
   cnt := 0;
   cmdPending := 1;
-  while (cnt < 10) and (cmdPending > 0) do begin
+  while (cnt < MAX_WAITS) and (cmdPending > 0) do begin
     logMessage('Waiting... ' + IntToStr(cnt));
     Inc(cnt);
     cmds := commands.LockList;
@@ -462,8 +488,12 @@ begin
       commands.UnlockList;
     end;
     if (cmdPending > 0) then begin
-      sleep(100);
+      sleep(WAIT_TIME);
     end;
+  end;
+  if (cnt >= MAX_WAITS) and (cmdPending > 0) then begin
+    raise  EBusError.Create(ClassName + ' wating timeout');
+
   end;
 end;
 
@@ -509,7 +539,7 @@ begin
   commands.Add(cmd);
 end;
 
-procedure TDevice.DoRegisterRead(reg: RegisterNum);
+function TDevice.DoRegisterRead(reg: RegisterNum): RegisterValue;
 var
   cmd: PDeviceCommand;
 begin
@@ -520,6 +550,8 @@ begin
     regRead := reg;
   end;
   commands.Add(cmd);
+  //  Result :=  Wait;
+  Result := 0;
 end;
 
 procedure TDevice.DoSignal(s: SignalNum; p: SignalValue);
@@ -650,6 +682,7 @@ var
 begin
   b := TBlock.Create;
   b.id := id;
+  b.perm := [pRead, pWrite];
   if (Clear) then begin
     FillByte(b.Data, sizeOf(b.Data), 0);
   end;
@@ -743,9 +776,99 @@ begin
   cpu.ReadIO := @ReadIOCall;
   cpu.WriteIO := @WriteIOCall;
   cpu.Halt := @HaltCall;
+  cpu.Trace := @TraceCPU;
+end;
+
+
+function T8080ProcessorUnit.ReadIOCall(const address: byte): byte;
+begin
+  Result := 0;
+end;
+
+procedure T8080ProcessorUnit.WriteIOCall(const address: byte; const val: byte);
+begin
+
+end;
+
+procedure T8080ProcessorUnit.HaltCall;
+begin
+  halt := True;
+end;
+
+procedure T8080ProcessorUnit.TraceCPU(const trace: RCPUStatus);
+var
+  s: string;
+  i: integer;
+  PC: iSize32;
+begin
+  s := '';
+  with cpu.CPUInfo do begin
+    PC := trace.regs[PCreg];
+    with  trace.opcode^ do begin
+      s := IntToHex(PC, 4) + ': ' + fmt;
+      s := StringReplace(s, '$%.4x', GetEnumName(TypeInfo(Emode), Ord(mode)), [rfReplaceAll]);
+      s := StringReplace(s, '$%.2x', GetEnumName(TypeInfo(Emode), Ord(mode)), [rfReplaceAll]);
+      if (Pos(TAB, s) = 0) then s := s + TAB;
+    end;
+    s := s + TAB;
+    for i := 0 to numRegs - 1 do begin
+      if (i <> PCreg) then begin
+        s := s + ' ' + regsName[i] + ': $' + IntToHex(trace.regs[i], regsSize[i] * 2);
+      end;
+    end;
+    s := s + ' Flags: ';
+    for i := 0 to numFlags - 1 do begin
+      if trace.flags[i] <> 0 then s := s + flagsName[i] else s := s + ' ';
+    end;
+    for i := 0 to numExtras - 1 do begin
+      s := s + ' ' + extrasName[i] + ': $' + IntToHex(trace.extras[i], extrasSize[i] * 2);
+    end;
+  end;
+  logTrace(s);
 end;
 
 procedure T8080ProcessorUnit.Reset;
+begin
+  inherited Reset;
+  cpu.Reset;
+end;
+
+{ T8085ProcessorUnit }
+
+constructor T8085ProcessorUnit.Create(aDCU: TDeviceUnit);
+begin
+  inherited Create(aDCU);
+  cpu := TCPU_8085.Create;
+  cpu.ReadMem := @ReadMemoryCall;
+  cpu.WriteMem := @WriteMemoryCall;
+  cpu.ReadIO := @ReadIOCall;
+  cpu.WriteIO := @WriteIOCall;
+  cpu.Halt := @HaltCall;
+  cpu.Trace := @TraceCPU;
+
+end;
+
+function T8085ProcessorUnit.ReadIOCall(const address: byte): byte;
+begin
+  Result := 0;
+end;
+
+procedure T8085ProcessorUnit.WriteIOCall(const address: byte; const val: byte);
+begin
+
+end;
+
+procedure T8085ProcessorUnit.HaltCall;
+begin
+  halt := True;
+end;
+
+procedure T8085ProcessorUnit.TraceCPU(const trace: RCPUStatus);
+begin
+  logTrace('Trace CPU');
+end;
+
+procedure T8085ProcessorUnit.Reset;
 begin
   inherited Reset;
   cpu.Reset;
@@ -763,6 +886,16 @@ begin
   def.regRead := @RegisterRead;
   def.regWrite := @RegisterWrite;
   halt := False;
+end;
+
+procedure TProcessorUnit.logTrace(Msg: string);
+var
+  PMessage: PChar;
+begin
+  if MessageHandler = 0 then Exit;
+  PMessage := StrAlloc(Length(Msg) + 1);
+  StrCopy(PMessage, PChar(Msg));
+  PostMessage(MessageHandler, WM_CPU_TRACE, WParam(PMessage), 0);
 end;
 
 function TProcessorUnit.ReadMemoryCall(const address: word): byte;
@@ -789,21 +922,6 @@ begin
   b.Data[offset] := val;
 end;
 
-function TProcessorUnit.ReadIOCall(const address: byte): byte;
-begin
-  Result := 0;
-end;
-
-procedure TProcessorUnit.WriteIOCall(const address: byte; const val: byte);
-begin
-
-end;
-
-procedure TProcessorUnit.HaltCall;
-begin
-  halt := True;
-end;
-
 procedure TProcessorUnit.Reset;
 var
   i: NumBank;
@@ -816,12 +934,12 @@ begin
   CopyBlock(ROM_END, RAM_START);
 end;
 
-procedure TProcessorUnit.CopyBlock(const srcBnak, dstBank: NumBank);
+procedure TProcessorUnit.CopyBlock(const srcBank, dstBank: BlockNum);
 var
   res: RegisterValue;
 begin
-  DCU.DoRegisterWrite(DCU_REG_SRC, ROM_END);
-  DCU.DoRegisterWrite(DCU_REG_DST, RAM_START);
+  DCU.DoRegisterWrite(DCU_REG_SRC, srcBank);
+  DCU.DoRegisterWrite(DCU_REG_DST, dstBank);
   DCU.DoSignal(DCU_SIGNAL_COPY, DCU_CMD_COPY_BANK);
   res := DCU.Wait;
   logMessage('DCU copied ' + IntToStr(res) + ' byte(s)');
@@ -876,4 +994,3 @@ begin
 end;
 
 end.
-

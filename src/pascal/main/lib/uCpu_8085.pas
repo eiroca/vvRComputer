@@ -14,7 +14,7 @@
 *)
 unit uCPU_8085;
 
-{$mode objfpc}{$H+}
+{$mode ObjFPC}{$H+}
 
 interface
 
@@ -244,12 +244,15 @@ type
     procedure op_XTHL;
   public
     constructor Create;
+  protected
+    procedure GetCPUInfo(var info: RCPUInfo);
   end;
 
 implementation
 
 constructor TCPU_8085.Create;
 begin
+  inherited;
   SetLength(OpCodes, 256);
   with OpCodes[$00] do begin code := @op_NOP; inst := 'NOP'; fmt := 'NOP'; mode := Emode.imp; len := 1; cycle := [1]; state := [4]; end;
   with OpCodes[$01] do begin code := @op_LXI_B; inst := 'LXI'; fmt := 'LXI' + #9 + 'B,%.4x'; mode := Emode.imm; len := 3; cycle := [3]; state := [10]; end;
@@ -443,70 +446,78 @@ begin
   with OpCodes[$BD] do begin code := @op_CMP_L; inst := 'CMP'; fmt := 'CMP' + #9 + 'L'; mode := Emode.reg; len := 1; cycle := [1]; state := [4]; end;
   with OpCodes[$BE] do begin code := @op_CMP_M; inst := 'CMP'; fmt := 'CMP' + #9 + 'M'; mode := Emode.ind_reg; len := 1; cycle := [2]; state := [7]; end;
   with OpCodes[$BF] do begin code := @op_CMP_A; inst := 'CMP'; fmt := 'CMP' + #9 + 'A'; mode := Emode.reg; len := 1; cycle := [1]; state := [4]; end;
-  with OpCodes[$C0] do begin code := @op_RNZ; inst := 'RNZ'; fmt := 'RNZ'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$C0] do begin code := @op_RNZ; inst := 'RNZ'; fmt := 'RNZ'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$C1] do begin code := @op_POP_B; inst := 'POP'; fmt := 'POP' + #9 + 'B'; mode := Emode.reg; len := 1; cycle := [3]; state := [10]; end;
-  with OpCodes[$C2] do begin code := @op_JNZ; inst := 'JNZ'; fmt := 'JNZ' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$C2] do begin code := @op_JNZ; inst := 'JNZ'; fmt := 'JNZ' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$C3] do begin code := @op_JMP; inst := 'JMP'; fmt := 'JMP' + #9 + '%.4x'; mode := Emode.jmp_abs; len := 3; cycle := [3]; state := [10]; end;
-  with OpCodes[$C4] do begin code := @op_CNZ; inst := 'CNZ'; fmt := 'CNZ' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$C4] do begin code := @op_CNZ; inst := 'CNZ'; fmt := 'CNZ' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
   with OpCodes[$C5] do begin code := @op_PUSH_B; inst := 'PUSH'; fmt := 'PUSH' + #9 + 'B'; mode := Emode.reg; len := 1; cycle := [3]; state := [13]; end;
   with OpCodes[$C6] do begin code := @op_ADI; inst := 'ADI'; fmt := 'ADI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [2]; state := [7]; end;
   with OpCodes[$C7] do begin code := @op_RST_0; inst := 'RST'; fmt := 'RST' + #9 + '0'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
-  with OpCodes[$C8] do begin code := @op_RZ; inst := 'RZ'; fmt := 'RZ'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$C8] do begin code := @op_RZ; inst := 'RZ'; fmt := 'RZ'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$C9] do begin code := @op_RET; inst := 'RET'; fmt := 'RET'; mode := Emode.imp; len := 1; cycle := [3]; state := [10]; end;
-  with OpCodes[$CA] do begin code := @op_JZ; inst := 'JZ'; fmt := 'JZ' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
-  with OpCodes[$CB] do begin code := @op_RSTV; inst := 'RSTV'; fmt := 'RSTV'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
-  with OpCodes[$CC] do begin code := @op_CZ; inst := 'CZ'; fmt := 'CZ' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$CA] do begin code := @op_JZ; inst := 'JZ'; fmt := 'JZ' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$CB] do begin code := @op_RSTV; inst := 'RSTV'; fmt := 'RSTV'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$CC] do begin code := @op_CZ; inst := 'CZ'; fmt := 'CZ' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
   with OpCodes[$CD] do begin code := @op_CALL; inst := 'CALL'; fmt := 'CALL' + #9 + '%.4x'; mode := Emode.jmp_abs; len := 3; cycle := [5]; state := [18]; end;
   with OpCodes[$CE] do begin code := @op_ACI; inst := 'ACI'; fmt := 'ACI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [2]; state := [7]; end;
   with OpCodes[$CF] do begin code := @op_RST_1; inst := 'RST'; fmt := 'RST' + #9 + '1'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
-  with OpCodes[$D0] do begin code := @op_RNC; inst := 'RNC'; fmt := 'RNC'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$D0] do begin code := @op_RNC; inst := 'RNC'; fmt := 'RNC'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$D1] do begin code := @op_POP_D; inst := 'POP'; fmt := 'POP' + #9 + 'D'; mode := Emode.reg; len := 1; cycle := [3]; state := [10]; end;
-  with OpCodes[$D2] do begin code := @op_JNC; inst := 'JNC'; fmt := 'JNC' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$D2] do begin code := @op_JNC; inst := 'JNC'; fmt := 'JNC' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$D3] do begin code := @op_OUT; inst := 'OUT'; fmt := 'OUT' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [3]; state := [10]; end;
-  with OpCodes[$D4] do begin code := @op_CNC; inst := 'CNC'; fmt := 'CNC' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$D4] do begin code := @op_CNC; inst := 'CNC'; fmt := 'CNC' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
   with OpCodes[$D5] do begin code := @op_PUSH_D; inst := 'PUSH'; fmt := 'PUSH' + #9 + 'D'; mode := Emode.reg; len := 1; cycle := [3]; state := [13]; end;
   with OpCodes[$D6] do begin code := @op_SUI; inst := 'SUI'; fmt := 'SUI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [2]; state := [7]; end;
   with OpCodes[$D7] do begin code := @op_RST_2; inst := 'RST'; fmt := 'RST' + #9 + '2'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
-  with OpCodes[$D8] do begin code := @op_RC; inst := 'RC'; fmt := 'RC'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$D8] do begin code := @op_RC; inst := 'RC'; fmt := 'RC'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$D9] do begin code := @op_SHLX; inst := 'SHLX'; fmt := 'SHLX'; mode := Emode.ind_reg; len := 1; cycle := [3]; state := [10]; end;
-  with OpCodes[$DA] do begin code := @op_JC; inst := 'JC'; fmt := 'JC' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$DA] do begin code := @op_JC; inst := 'JC'; fmt := 'JC' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$DB] do begin code := @op_IN; inst := 'IN'; fmt := 'IN' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [3]; state := [10]; end;
-  with OpCodes[$DC] do begin code := @op_CC; inst := 'CC'; fmt := 'CC' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
-  with OpCodes[$DD] do begin code := @op_JNK; inst := 'JNK'; fmt := 'JNK' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$DC] do begin code := @op_CC; inst := 'CC'; fmt := 'CC' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$DD] do begin code := @op_JNK; inst := 'JNK'; fmt := 'JNK' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$DE] do begin code := @op_SBI; inst := 'SBI'; fmt := 'SBI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [2]; state := [7]; end;
   with OpCodes[$DF] do begin code := @op_RST_3; inst := 'RST'; fmt := 'RST' + #9 + '3'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
-  with OpCodes[$E0] do begin code := @op_RPO; inst := 'RPO'; fmt := 'RPO'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$E0] do begin code := @op_RPO; inst := 'RPO'; fmt := 'RPO'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$E1] do begin code := @op_POP_H; inst := 'POP'; fmt := 'POP' + #9 + 'H'; mode := Emode.reg; len := 1; cycle := [3]; state := [10]; end;
-  with OpCodes[$E2] do begin code := @op_JPO; inst := 'JPO'; fmt := 'JPO' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$E2] do begin code := @op_JPO; inst := 'JPO'; fmt := 'JPO' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$E3] do begin code := @op_XTHL; inst := 'XTHL'; fmt := 'XTHL'; mode := Emode.imp; len := 1; cycle := [5]; state := [16]; end;
-  with OpCodes[$E4] do begin code := @op_CPO; inst := 'CPO'; fmt := 'CPO' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$E4] do begin code := @op_CPO; inst := 'CPO'; fmt := 'CPO' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
   with OpCodes[$E5] do begin code := @op_PUSH_H; inst := 'PUSH'; fmt := 'PUSH' + #9 + 'H'; mode := Emode.reg; len := 1; cycle := [3]; state := [13]; end;
   with OpCodes[$E6] do begin code := @op_ANI; inst := 'ANI'; fmt := 'ANI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [2]; state := [7]; end;
   with OpCodes[$E7] do begin code := @op_RST_4; inst := 'RST'; fmt := 'RST' + #9 + '4'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
-  with OpCodes[$E8] do begin code := @op_RPE; inst := 'RPE'; fmt := 'RPE'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$E8] do begin code := @op_RPE; inst := 'RPE'; fmt := 'RPE'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$E9] do begin code := @op_PCHL; inst := 'PCHL'; fmt := 'PCHL'; mode := Emode.imp; len := 1; cycle := [1]; state := [6]; end;
-  with OpCodes[$EA] do begin code := @op_JPE; inst := 'JPE'; fmt := 'JPE' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$EA] do begin code := @op_JPE; inst := 'JPE'; fmt := 'JPE' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$EB] do begin code := @op_XCHG; inst := 'XCHG'; fmt := 'XCHG'; mode := Emode.reg; len := 1; cycle := [1]; state := [4]; end;
-  with OpCodes[$EC] do begin code := @op_CPE; inst := 'CPE'; fmt := 'CPE' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$EC] do begin code := @op_CPE; inst := 'CPE'; fmt := 'CPE' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
   with OpCodes[$ED] do begin code := @op_LHLX; inst := 'LHLX'; fmt := 'LHLX'; mode := Emode.ind_reg; len := 1; cycle := [3]; state := [10]; end;
   with OpCodes[$EE] do begin code := @op_XRI; inst := 'XRI'; fmt := 'XRI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := [2]; state := [7]; end;
   with OpCodes[$EF] do begin code := @op_RST_5; inst := 'RST'; fmt := 'RST' + #9 + '5'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
-  with OpCodes[$F0] do begin code := @op_RP; inst := 'RP'; fmt := 'RP'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$F0] do begin code := @op_RP; inst := 'RP'; fmt := 'RP'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$F1] do begin code := @op_POP_PSW; inst := 'POP'; fmt := 'POP' + #9 + 'PSW'; mode := Emode.reg; len := 1; cycle := []; state := []; end;
-  with OpCodes[$F2] do begin code := @op_JP; inst := 'JP'; fmt := 'JP' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$F2] do begin code := @op_JP; inst := 'JP'; fmt := 'JP' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$F3] do begin code := @op_DI; inst := 'DI'; fmt := 'DI'; mode := Emode.imp; len := 1; cycle := []; state := []; end;
-  with OpCodes[$F4] do begin code := @op_CP; inst := 'CP'; fmt := 'CP' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$F4] do begin code := @op_CP; inst := 'CP'; fmt := 'CP' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
   with OpCodes[$F5] do begin code := @op_PUSH_PSW; inst := 'PUSH'; fmt := 'PUSH' + #9 + 'PSW'; mode := Emode.reg; len := 1; cycle := [3]; state := [13]; end;
   with OpCodes[$F6] do begin code := @op_ORI; inst := 'ORI'; fmt := 'ORI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := []; state := []; end;
   with OpCodes[$F7] do begin code := @op_RST_6; inst := 'RST'; fmt := 'RST' + #9 + '6'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
-  with OpCodes[$F8] do begin code := @op_RM; inst := 'RM'; fmt := 'RM'; mode := Emode.cjmp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
+  with OpCodes[$F8] do begin code := @op_RM; inst := 'RM'; fmt := 'RM'; mode := Emode.cjp_abs; len := 1; cycle := [1, 3]; state := [6, 12]; end;
   with OpCodes[$F9] do begin code := @op_SPHL; inst := 'SPHL'; fmt := 'SPHL'; mode := Emode.imp; len := 1; cycle := [1]; state := [6]; end;
-  with OpCodes[$FA] do begin code := @op_JM; inst := 'JM'; fmt := 'JM' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$FA] do begin code := @op_JM; inst := 'JM'; fmt := 'JM' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$FB] do begin code := @op_EI; inst := 'EI'; fmt := 'EI'; mode := Emode.imp; len := 1; cycle := []; state := []; end;
-  with OpCodes[$FC] do begin code := @op_CM; inst := 'CM'; fmt := 'CM' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
-  with OpCodes[$FD] do begin code := @op_JK; inst := 'JK'; fmt := 'JK' + #9 + '%.4x'; mode := Emode.cjmp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
+  with OpCodes[$FC] do begin code := @op_CM; inst := 'CM'; fmt := 'CM' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 5]; state := [9, 18]; end;
+  with OpCodes[$FD] do begin code := @op_JK; inst := 'JK'; fmt := 'JK' + #9 + '%.4x'; mode := Emode.cjp_abs; len := 3; cycle := [2, 3]; state := [7, 10]; end;
   with OpCodes[$FE] do begin code := @op_CPI; inst := 'CPI'; fmt := 'CPI' + #9 + '%.2x'; mode := Emode.imm; len := 2; cycle := []; state := []; end;
   with OpCodes[$FF] do begin code := @op_RST_7; inst := 'RST'; fmt := 'RST' + #9 + '7'; mode := Emode.imp; len := 1; cycle := [3]; state := [12]; end;
+end;
+
+procedure TCPU_8085.GetCPUInfo(var info: RCPUInfo);
+begin;
+  inherited;
+  with info do begin
+    flagsName := ['C', 'V', 'P', '-', 'H', 'K', 'Z', 'S'];
+  end;
 end;
 
 procedure TCPU_8085.op_DSUB;
@@ -3270,7 +3281,7 @@ end;
 procedure TCPU_8085.op_PUSH_PSW;
 begin
   SP := (SP - 1) and $FFFF;
-  WriteMem(SP, FlagsTo());
+  WriteMem(SP, FlagsToByte());
   SP := (SP - 1) and $FFFF;
   WriteMem(SP, A);
   Inc(cycles, 3);

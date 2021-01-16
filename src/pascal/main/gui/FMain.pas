@@ -21,13 +21,15 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, strutils,
   LMessages, LCLIntf, LCLType, LCLProc, ExtCtrls, ComCtrls, Grids, MaskEdit,
-  uDevice, uCPU_8080, uCPU_8085, Types, TypInfo;
+  uCPU, AvgLvlTree,
+  uDevice, Types, TypInfo;
 
 type
 
   { TfmMain }
 
   TfmMain = class(TForm)
+    cbTrace: TCheckBox;
     iDisAss: TButton;
     dgDevices: TDrawGrid;
     iAdrStart: TMaskEdit;
@@ -41,7 +43,7 @@ type
     mCPU: TMemo;
     mOutput: TMemo;
     Panel2: TPanel;
-    pLog: TPageControl;
+    pcComputer: TPageControl;
     Panel1: TPanel;
     StatusBar1: TStatusBar;
     TabSheet1: TTabSheet;
@@ -60,6 +62,7 @@ type
     VPU: TVideoUnit;
     SPU: TSoundUnit;
     procedure HandleDebug(var Msg: TLMessage); message WM_DEVICE_MESSAGE;
+    procedure HandleCPUTrace(var Msg: TLMessage); message WM_CPU_TRACE;
     procedure drawLeft(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
     procedure drawCentered(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
     procedure drawRight(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
@@ -78,14 +81,18 @@ implementation
 
 {$R *.lfm}
 
-function getVal(val: string): integer;
+function getVal(val: string): iSize16;
+var
+  r: integer;
 begin
+  Result := -1;
   try
     val := StringReplace(val, ' ', '', [rfReplaceAll]);
     if (val = '') then val := '0';
-    Result := Hex2Dec(val);
+    r := Hex2Dec(val);
+    if (r >= 0) and (r <= $FFFF) then Result := r;
   except
-    on E: EConvertError do Result := -1;
+    on E: EConvertError do ;
   end;
 end;
 
@@ -95,6 +102,7 @@ const
 
 procedure TfmMain.FormCreate(Sender: TObject);
 begin
+  pcComputer.ActivePageIndex := 0;
   mOutput.Clear;
   DCU := TDeviceUnit.Create;
   DCU.MessageHandler := fmMain.Handle;
@@ -115,51 +123,128 @@ end;
 
 procedure TfmMain.iExecuteClick(Sender: TObject);
 var
-  adrStart: integer;
+  addr: uint16;
+  adrStart: iSize16;
 begin
   adrStart := getVal(iAdrStart.Text);
-  CPU.cpu.Run(adrStart, 1000);
+  if (adrStart <> -1) then begin
+    addr := adrStart;
+    CPU.cpu.Run(addr, cbTrace.Checked);
+  end;
 end;
 
 procedure TfmMain.iDisAssClick(Sender: TObject);
 var
+  node: TAvgLvlTreeNode;
   addr: uint16;
-  adrStart, adrEnd: integer;
-  instList, codePoint, dataPoint: TStringList;
-  cnt: integer;
+  adrStart, adrEnd: iSize16;
+  instList: TInstructionList;
+  memMap: TMemoryMap;
+  memInfo: PMemoryArea;
+  mu: EMemoryUsage;
+  i, cnt: integer;
+  inst: PInstruction;
+  s, cmt: string;
 begin
   adrStart := getVal(iAdrStart.Text);
-  adrEnd := getVal(iAdrEnd.Text);
   if (adrStart <> -1) then begin
+    adrEnd := getVal(iAdrEnd.Text);
     if (adrEnd = -1) then adrEnd := adrStart + 20;
-    instList := TStringList.Create;
-    codePoint := TStringList.Create;
-    dataPoint := TStringList.Create;
-    instList.Duplicates := dupIgnore;
-    codePoint.Duplicates := dupIgnore;
-    dataPoint.Duplicates := dupIgnore;
+    instList := TInstructionList.Create;
+    memMap := TMemoryMap.Create;
     try
+      mCPU.Lines.BeginUpdate;
       addr := adrStart;
-      cnt := CPU.cpu.DisAss(addr, adrEnd, instList, codePoint, dataPoint);
-      if (cnt > 0) then begin
-        mCPU.Lines.AddStrings(instList, True);
-        if (codePoint.Count > 0) then begin
-          codePoint.Sort;
-          mCPU.Lines.Add('');
-          mCPU.Lines.Add('Entry Points:');
-          mCPU.Lines.AddStrings(codePoint);
+      cnt := CPU.cpu.Disassemble(addr, adrEnd, instList, memMap);
+      // Code Entries
+      mCPU.Lines.Add(';');
+      mCPU.Lines.Add('; Code references');
+      mCPU.Lines.Add(';');
+      for Node in memMap do begin
+        memInfo := PMemoryArea(Node.Data);
+        with memInfo^ do begin
+          if (refCode in usage) then begin
+            s := IntToHex(addrStart, 4);
+            s := 'C' + s + TAB + '.equ' + TAB + '$' + s;
+            mCPU.Lines.Add(s);
+          end;
         end;
-        if (dataPoint.Count > 0) then begin
-          dataPoint.Sort;
-          mCPU.Lines.Add('');
-          mCPU.Lines.Add('Data points:');
-          mCPU.Lines.AddStrings(dataPoint);
+      end;
+      // Data Entries
+      mCPU.Lines.Add(';');
+      mCPU.Lines.Add('; Data references');
+      mCPU.Lines.Add(';');
+      for Node in memMap do begin
+        memInfo := PMemoryArea(Node.Data);
+        with memInfo^ do begin
+          if (refData in usage) then begin
+            s := IntToHex(addrStart, 4);
+            s := 'D' + s + TAB + '.equ' + TAB + '$' + s + TAB + TAB + '; ' + IntToHex(CPU.cpu.ReadMem(addrStart), 2);
+            mCPU.Lines.Add(s);
+          end;
+        end;
+      end;
+      mCPU.Lines.Add(';');
+      mCPU.Lines.Add('; Code');
+      mCPU.Lines.Add(';');
+      if (cnt > 0) then begin
+        for i := 0 to cnt - 1 do begin
+          inst := instList[i];
+          with inst^ do begin
+            memInfo := memMap.FindArea(addr);
+            cmt := '; ' + IntToHex(opcode, 2);
+            if (def^.len = 1) then begin
+              if (Pos(TAB, def^.fmt) <> 0) then begin
+                cmt := cmt;
+              end
+              else begin
+                cmt := TAB + cmt;
+              end;
+            end
+            else if (def^.len = 2) then begin
+              cmt := cmt + ' ' + IntToHeX(param1, 2);
+            end
+            else if (def^.len = 3) then begin
+              s := IntToHeX(param1, 4);
+              cmt := cmt + ' ' + Copy(s, 3, 2) + ' ' + Copy(s, 1, 2);
+            end;
+            if (memInfo = nil) then begin
+              s := 'L' + IntToHex(addr, 4) + ':';
+            end
+            else begin
+              if (refCode in memInfo^.usage) then begin
+                s := 'L' + IntToHex(addr, 4);
+              end
+              else begin
+                s := '';
+              end;
+            end;
+            s := s + TAB + Format(def^.fmt, [param1]) + TAB + TAB + cmt;
+            mCPU.Lines.Add(s);
+          end;
+        end;
+      end;
+      // Memory Map
+      memMap.Pack;
+      mCPU.Lines.Add('');
+      mCPU.Lines.Add('Memory Map:');
+      for Node in memMap do begin
+        memInfo := PMemoryArea(Node.Data);
+        with memInfo^ do begin
+          s := IntToHex(addrStart, 4);
+          if (len > 1) then begin
+            s := s + '-' + IntToHex(addrStart + len - 1, 4);
+          end;
+          for mu in (usage * [mData, mCode]) do begin
+            s := s + ' ' + GetEnumName(TypeInfo(EMemoryUsage), Ord(mu));
+          end;
+          mCPU.Lines.Add(s);
         end;
       end;
     finally
+      mCPU.Lines.EndUpdate;
       FreeAndNil(instList);
-      FreeAndNil(codePoint);
-      FreeAndNil(dataPoint);
+      FreeAndNil(memMap);
     end;
   end;
 end;
@@ -193,9 +278,8 @@ end;
 
 procedure TfmMain.drawLeft(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
 var
-  ww, hh: integer;
+  hh: integer;
 begin
-  ww := Canvas.TextWidth(msg);
   hh := Canvas.TextHeight(msg);
   aCanvas.TextOut(aRect.Left + 3, aRect.Top + (aRect.Height - hh) div 2, msg);
 end;
@@ -220,7 +304,7 @@ begin
           devSubType := d.Conf.devSubType;
           case (aCol) of
             1: begin
-              if ((devType >= low(DeviceTypeName)) and (devType <= high(DeviceTypeName))) then begin
+              if (devType <= high(DeviceTypeName)) then begin
                 drawLeft(dgDevices.Canvas, aRect, DeviceTypeName[devType]);
               end
               else begin
@@ -228,16 +312,16 @@ begin
               end;
             end;
             2: begin
-              if ((devType = DU_MAIN) and (devSubType >= low(DPUSubTypeName)) and (devSubType <= high(DPUSubTypeName))) then begin
+              if ((devType = DU_MAIN) and (devSubType <= high(DPUSubTypeName))) then begin
                 drawLeft(dgDevices.Canvas, aRect, DPUSubTypeName[devSubType]);
               end
-              else if ((devType = DU_CPU) and (devSubType >= low(CPUSubTypeName)) and (devSubType <= high(CPUSubTypeName))) then begin
+              else if ((devType = DU_CPU) and (devSubType <= high(CPUSubTypeName))) then begin
                 drawLeft(dgDevices.Canvas, aRect, CPUSubTypeName[devSubType]);
               end
-              else if ((devType = DU_VDU) and (devSubType >= low(VDUSubTypeName)) and (devSubType <= high(VDUSubTypeName))) then begin
+              else if ((devType = DU_VDU) and (devSubType <= high(VDUSubTypeName))) then begin
                 drawLeft(dgDevices.Canvas, aRect, VDUSubTypeName[devSubType]);
               end
-              else if ((devType = DU_SDU) and (devSubType >= low(SDUSubTypeName)) and (devSubType <= high(SDUSubTypeName))) then begin
+              else if ((devType = DU_SDU) and (devSubType <= high(SDUSubTypeName))) then begin
                 drawLeft(dgDevices.Canvas, aRect, SDUSubTypeName[devSubType]);
               end
               else begin
@@ -260,7 +344,6 @@ begin
   DCU.Terminate;
 end;
 
-
 procedure TfmMain.HandleDebug(var Msg: TLMessage);
 var
   MsgStr: PChar;
@@ -269,6 +352,17 @@ begin
   MsgStr := PChar(Msg.wparam);
   MsgPasStr := StrPas(MsgStr);
   mOutput.Lines.Add(MsgPasStr);
+  StrDispose(MsgStr);
+end;
+
+procedure TfmMain.HandleCPUTrace(var Msg: TLMessage);
+var
+  MsgStr: PChar;
+  MsgPasStr: string;
+begin
+  MsgStr := PChar(Msg.wparam);
+  MsgPasStr := StrPas(MsgStr);
+  mCPU.Lines.Add(MsgPasStr);
   StrDispose(MsgStr);
 end;
 
@@ -311,7 +405,7 @@ var
 begin
   B := DCU.getBlock(block, False);
   if (B <> nil) then begin
-    size := SizeOf(BlockDataType) div 32;
+    size := SizeOf(BlockData) div 32;
     addr := block shl 12;
     base := 0;
     for r := 1 to size do begin
@@ -327,4 +421,6 @@ begin
 end;
 
 end.
+
+
 
