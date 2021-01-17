@@ -33,88 +33,7 @@ type
   iSize32 = uint32;
   PSize32 = ^iSize32;
 
-const
-
-  TAB = #9;
-
-  bit_val: array[0..31] of iSize32 = (
-    %00000000000000000000000000000001, %00000000000000000000000000000010,
-    %00000000000000000000000000000100, %00000000000000000000000000001000,
-    %00000000000000000000000000010000, %00000000000000000000000000100000,
-    %00000000000000000000000001000000, %00000000000000000000000010000000,
-    %00000000000000000000000100000000, %00000000000000000000001000000000,
-    %00000000000000000000010000000000, %00000000000000000000100000000000,
-    %00000000000000000001000000000000, %00000000000000000010000000000000,
-    %00000000000000000100000000000000, %00000000000000001000000000000000,
-    %00000000000000010000000000000000, %00000000000000100000000000000000,
-    %00000000000001000000000000000000, %00000000000010000000000000000000,
-    %00000000000100000000000000000000, %00000000001000000000000000000000,
-    %00000000010000000000000000000000, %00000000100000000000000000000000,
-    %00000001000000000000000000000000, %00000010000000000000000000000000,
-    %00000100000000000000000000000000, %00001000000000000000000000000000,
-    %00010000000000000000000000000000, %00100000000000000000000000000000,
-    %01000000000000000000000000000000, %10000000000000000000000000000000
-    );
-
-  bit_mask: array[0..31] of iSize32 = (
-    %11111111111111111111111111111110, %11111111111111111111111111111101,
-    %11111111111111111111111111111011, %11111111111111111111111111110111,
-    %11111111111111111111111111101111, %11111111111111111111111111011111,
-    %11111111111111111111111110111111, %11111111111111111111111101111111,
-    %11111111111111111111111011111111, %11111111111111111111110111111111,
-    %11111111111111111111101111111111, %11111111111111111111011111111111,
-    %11111111111111111110111111111111, %11111111111111111101111111111111,
-    %11111111111111111011111111111111, %11111111111111110111111111111111,
-    %11111111111111101111111111111111, %11111111111111011111111111111111,
-    %11111111111110111111111111111111, %11111111111101111111111111111111,
-    %11111111111011111111111111111111, %11111111110111111111111111111111,
-    %11111111101111111111111111111111, %11111111011111111111111111111111,
-    %11111110111111111111111111111111, %11111101111111111111111111111111,
-    %11111011111111111111111111111111, %11110111111111111111111111111111,
-    %11101111111111111111111111111111, %11011111111111111111111111111111,
-    %10111111111111111111111111111111, %01111111111111111111111111111111
-    );
-
-  count_of_bits: array[0..255] of iSize8 = (
-    0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4,
-    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5,
-    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6,
-    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7,
-    4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8
-    );
-
-  parity_of_bits: array[0..255] of boolean = (
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False
-    );
-
-  bool_bit: array[boolean] of iSize8 = (0, 1);
-  endian_offset: array[boolean, 0..1] of iSize8 = ((1, 0), (0, 1));
+{$include CPU_const.inc}
 
 type
   OpcodeCall = procedure() of object;
@@ -122,13 +41,6 @@ type
   EMode = (imp, imm, ind_reg, ind_abs, reg, reg_i, cjp_abs, jmp_abs, abs);
 
   TFlags = array of boolean;
-
-  PIRQ = ^RIRQ;
-  RIRQ = record
-    masked: boolean;
-    active: boolean;
-  end;
-  TIRQs = array of RIRQ;
 
   PCPUInfo = ^RCPUInfo;
   RCPUInfo = record
@@ -160,6 +72,27 @@ type
     state: array of integer;
   end;
 
+  PIRQ = ^RIRQ;
+  RIRQ = record
+    masked: boolean;
+    active: boolean;
+  end;
+  TIRQs = array of RIRQ;
+
+  PCPUStatus = ^RCPUStatus;
+  RCPUStatus = record
+    opcode: POpcode;
+    regs: array of iSize32;
+    extras: array of iSize32;
+    flags: TFlags;
+    IntEnabled: boolean;
+    irqs: TIRQs;
+  end;
+
+type
+
+  { Instructions }
+
   PInstruction = ^RInstuction;
   RInstuction = record
     def: POpcode;
@@ -168,6 +101,17 @@ type
     param1: iSize32;
     param2: iSize32;
   end;
+
+  TInstructionList = class(TList, IFPObserver)
+  public
+    constructor Create;
+    destructor Destroy; override;
+  private
+    procedure FPOObservedChanged(ASender: TObject; Operation: TFPObservedOperation; Data: Pointer);
+  end;
+
+type
+  { Memory Map }
 
   EMemoryUsage = (mCode, mData, refCode, refData);
   MemoryUsage = set of EMemoryUsage;
@@ -178,28 +122,6 @@ type
     len: iSize32;
     usage: MemoryUsage;
   end;
-
-  PCPUStatus = ^RCPUStatus;
-  RCPUStatus = record
-    opcode: POpcode;
-    regs: array of iSize32;
-    extras: array of iSize32;
-    flags: TFlags;
-  end;
-
-type
-
-  { TInstructionList }
-
-  TInstructionList = class(TList, IFPObserver)
-  public
-    constructor Create;
-    destructor Destroy; override;
-  private
-    procedure FPOObservedChanged(ASender: TObject; Operation: TFPObservedOperation; Data: Pointer);
-  end;
-
-  { TMemoryMap }
 
   TMemoryMap = class(TAvgLvlTree)
   public
@@ -214,66 +136,68 @@ type
   end;
 
 type
-  HaltCall = procedure() of object;
-  TraceCall = procedure(const trace: RCPUStatus) of object;
-
-type
-  Read8Memory16Call = function(const address: uint16): uint8 of object;
-  Write8Memory16Call = procedure(const address: uint16; const val: uint8) of object;
-
-type
 
   { TCPU }
+
+  HaltCall = procedure() of object;
+  TraceCall = procedure(const trace: RCPUStatus) of object;
 
   generic TCPU<AddrType> = class
   private
     // Emulator hooks
-    FHalt: HaltCall;
-    FTrace: TraceCall;
-    FCPUInfo: RCPUInfo;
+    FHaltEvent: HaltCall;
+    FTraceEvent: TraceCall;
   protected
     // Emulator status
     opers: int64;
     cycles: int64;
-    isHalted: boolean;
+  protected
+    FHalted: boolean;
+    FIRQAllowed: boolean;
+    FInfo: RCPUInfo;
+    FStatus: RCPUStatus;
+    FIRQs: TIRQs;
   protected
     // CPU status & Regs
     PC: AddrType;
     SP: AddrType;
     F: array of boolean;
-    IRQs: TIRQs;
-    interruptAllowed: boolean;
   public
     constructor Create;
   protected
-    procedure SetIRQ(int: integer; a: boolean);
-  public
-    property Halt: HaltCall read FHalt write FHalt;
-    property Trace: TraceCall read FTrace write FTrace;
-    property CPUInfo: RCPUInfo read FCPUInfo;
-    property IRQ[i: integer]: boolean write setIRQ;
-  protected
-    procedure CheckIRQs(); virtual;
+    function CheckIRQs(): boolean; virtual;
     procedure DoIRQ(int: integer); virtual;
   protected // Abstract
-    procedure GetCPUInfo(var info: RCPUInfo); virtual; abstract;
-    procedure Reset; virtual; abstract;
+    procedure UpdateCPUInfo; virtual; abstract;
+    procedure UpdateCPUStatus(fillExtra: boolean = True); virtual; abstract;
     function Step: POpcode; virtual; abstract;
     procedure DecodeInst(var addr: AddrType; var inst: RInstuction; incAddr: boolean = True); virtual; abstract;
+  protected // property Getter/Setter
+    procedure SetIRQ(int: integer; a: boolean);
+    function GetCPUStatus: RCPUStatus;
+  public // events
+    property OnHalt: HaltCall read FHaltEvent write FHaltEvent;
+    property OnTrace: TraceCall read FTraceEvent write FTraceEvent;
+  public // properties
+    property Halted: boolean read FHalted write FHalted;
+    property IRQAllowed: boolean read FIRQAllowed write FIRQAllowed;
+    property Info: RCPUInfo read FInfo;
+    property Status: RCPUStatus read GetCPUStatus;
   public
+    property IRQ[i: integer]: boolean write setIRQ;
+  public // Commands
+    procedure Reset(); virtual;
+    procedure SoftReset(); virtual;
     function Run(var addr: AddrType; aTrace: boolean = False; steps: integer = -1): integer; virtual;
     function Disassemble(var addr: AddrType; const endAddr: AddrType; instList: TInstructionList; memMap: TMemoryMap; steps: integer = -1): integer;
-  public
-    function AllocCPUStatus: PCPUStatus;
-    procedure GetStatus(var status: RCPUStatus; fillExtra: boolean = True); virtual; abstract;
-    function GetIRQs: TIRQs;
-    function GetInterruptAllowed: boolean;
   end;
 
 
 type
+  { TCPU_ClassA - 16 bits data address}
 
-  { TCPU_ClassA }
+  Read8Memory16Call = function(const address: uint16): uint8 of object;
+  Write8Memory16Call = procedure(const address: uint16; const val: uint8) of object;
 
   TCPU_ClassA = class(specialize TCPU<uint16>)
     // 8 bits data bus
@@ -479,16 +403,27 @@ end;
 
 { TCPU }
 
+function TCPU.GetCPUStatus: RCPUStatus;
+begin
+  UpdateCPUStatus();
+  FStatus.irqs := FIRQs;
+  FStatus.IntEnabled := IRQAllowed;
+  Result := FStatus;
+end;
+
 constructor TCPU.Create;
 var
   i: integer;
 begin
-  GetCPUInfo(FCPUInfo);
-  with FCPUInfo do begin
+  UpdateCPUInfo();
+  with FInfo do begin
+    setLength(FStatus.regs, FInfo.numRegs);
+    setLength(FStatus.flags, FInfo.numFlags);
+    setLength(FStatus.extras, FInfo.numExtras);
     SetLength(F, numFlags);
-    SetLength(IRQs, numIRQs);
+    SetLength(FIRQs, numIRQs);
     for i := 0 to numIRQs - 1 do begin
-      with IRQs[i] do begin
+      with FIRQs[i] do begin
         active := False;
         masked := False;
       end;
@@ -498,24 +433,31 @@ end;
 
 procedure TCPU.SetIRQ(int: integer; a: boolean);
 begin
-  with FCPUInfo do begin
+  with FInfo do begin
     if (int >= 0) and (int < numIRQs) then begin
-      IRQs[int].active := a;
+      FIRQs[int].active := a;
     end;
   end;
 end;
 
-procedure TCPU.CheckIRQs();
+procedure TCPU.Reset();
+begin
+  FHalted := True;
+end;
+
+function TCPU.CheckIRQs(): boolean;
 var
   NMI: boolean;
   i: integer;
 begin
-  with FCPUInfo do begin
+  Result := False;
+  with FInfo do begin
     for i := 0 to numIRQs - 1 do begin
-      with IRQs[i] do begin
-        if IRQs[i].active then begin
+      with FIRQs[i] do begin
+        if FIRQs[i].active then begin
           NMI := IRQsNMI[i];
-          if (NMI) or ((masked = False) and interruptAllowed) then begin
+          if (NMI) or ((masked = False) and FIRQAllowed) then begin
+            Result := True;
             DoIRQ(i);
           end;
         end;
@@ -526,36 +468,43 @@ end;
 
 procedure TCPU.DoIRQ(int: integer);
 begin
-  interruptAllowed := False;
-  IRQs[int].active := False;
+  FIRQAllowed := False;
+  FIRQs[int].active := False;
 end;
 
 function TCPU.Run(var addr: AddrType; aTrace: boolean = False; steps: integer = -1): integer;
 var
-  status: PCPUStatus;
   opcode: POpcode;
 begin
   Result := 0;
   PC := addr;
-  if not Assigned(FTrace) then aTrace := False;
-  if (aTrace) then begin
-    status := AllocCPUStatus;
-  end;
-  while (not isHalted) and ((steps < 0) or (Result < steps)) do begin
+  if not Assigned(FTraceEvent) then aTrace := False;
+  while (not FHalted) and ((steps < 0) or (Result < steps)) do begin
     Result := (Result + 1) and $8FFFFFFF;
     if (aTrace) then begin
-      GetStatus(status^);
+      UpdateCPUStatus();
     end;
-    opcode := Step;
+    if CheckIRQs() = False then begin
+      // No IRQs execute a opcode
+      opcode := Step;
+    end
+    else begin
+      opcode:= nil;
+    end;
     if (aTrace) then begin
-      status^.opcode := opcode;
-      Trace(status^);
+      FStatus.opcode := opcode;
+      OnTrace(FStatus);
     end;
-  end;
-  if (aTrace) then begin
-    Dispose(status);
   end;
   addr := PC;
+end;
+
+function TCPU_ClassA.Step: POpcode;
+begin
+  Inc(opers);
+  Result := @OpCodes[ReadMem(PC)];
+  PC := (PC + 1) and $FFFF;
+  Result^.code();
 end;
 
 function TCPU.Disassemble(var addr: AddrType; const endAddr: AddrType; instList: TInstructionList; memMap: TMemoryMap; steps: integer = -1): integer;
@@ -585,33 +534,9 @@ begin
   end;
 end;
 
-function TCPU.AllocCPUStatus: PCPUStatus;
+procedure TCPU.SoftReset();
 begin
-  new(Result);
-  with Result^ do begin
-    setLength(regs, FCPUInfo.numRegs);
-    setLength(flags, FCPUInfo.numFlags);
-    setLength(extras, FCPUInfo.numExtras);
-  end;
-end;
-
-function TCPU.GetIRQs: TIRQs;
-begin
-  Result := IRQs;
-end;
-
-function TCPU.GetInterruptAllowed: boolean;
-begin
-  Result := interruptAllowed;
-end;
-
-function TCPU_ClassA.Step: POpcode;
-begin
-  Inc(opers);
-  Result := @OpCodes[ReadMem(PC)];
-  PC := (PC + 1) and $FFFF;
-  Result^.code();
-  CheckIRQs();
+  DoIRQ(0);
 end;
 
 procedure TCPU_ClassA.DecodeInst(var addr: uint16; var inst: RInstuction; incAddr: boolean);
@@ -632,8 +557,8 @@ begin
     prm := ReadMem(addr + 1);
   end
   else if (len = 3) then begin
-    b1 := ReadMem(addr + 1 + endian_offset[CPUInfo.littleEndian, 0]);
-    b2 := ReadMem(addr + 1 + endian_offset[CPUInfo.littleEndian, 1]);
+    b1 := ReadMem(addr + 1 + endian_offset[Info.littleEndian, 0]);
+    b2 := ReadMem(addr + 1 + endian_offset[Info.littleEndian, 1]);
     prm := b2 shl 8 + b1;
   end;
   if (incAddr) then addr := addr + len;

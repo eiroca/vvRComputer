@@ -23,8 +23,9 @@ object fmMain: TfmMain
     Width = 936
     ActivePage = TabSheet2
     Align = alClient
-    TabIndex = 2
+    TabIndex = 3
     TabOrder = 1
+    OnEnter = pcComputerEnter
     object TabSheet1: TTabSheet
       Caption = 'Logs'
       ClientHeight = 655
@@ -40,139 +41,6 @@ object fmMain: TfmMain
         )
         ScrollBars = ssAutoBoth
         TabOrder = 0
-        WordWrap = False
-      end
-    end
-    object TabSheet3: TTabSheet
-      Caption = 'Devices'
-      ClientHeight = 655
-      ClientWidth = 928
-      object dgDevices: TDrawGrid
-        Left = 0
-        Height = 655
-        Top = 0
-        Width = 928
-        Align = alClient
-        ColCount = 7
-        Columns = <        
-          item
-            Title.Alignment = taCenter
-            Title.Font.CharSet = ANSI_CHARSET
-            Title.Font.Color = clBlack
-            Title.Font.Height = -12
-            Title.Font.Name = 'Segoe UI'
-            Title.Font.Pitch = fpVariable
-            Title.Font.Quality = fqDraft
-            Title.Font.Style = [fsBold]
-            Title.Caption = 'ID'
-            Width = 64
-          end        
-          item
-            Title.Alignment = taCenter
-            Title.Font.CharSet = ANSI_CHARSET
-            Title.Font.Color = clBlack
-            Title.Font.Height = -12
-            Title.Font.Name = 'Segoe UI'
-            Title.Font.Pitch = fpVariable
-            Title.Font.Quality = fqDraft
-            Title.Font.Style = [fsBold]
-            Title.Caption = 'Type'
-            Width = 64
-          end        
-          item
-            Title.Alignment = taCenter
-            Title.Font.CharSet = ANSI_CHARSET
-            Title.Font.Color = clBlack
-            Title.Font.Height = -12
-            Title.Font.Name = 'Segoe UI'
-            Title.Font.Pitch = fpVariable
-            Title.Font.Quality = fqDraft
-            Title.Font.Style = [fsBold]
-            Title.Caption = 'SubType'
-            Width = 64
-          end        
-          item
-            Title.Alignment = taCenter
-            Title.Font.Style = [fsBold]
-            Title.Caption = '+RAM'
-            Width = 64
-          end        
-          item
-            Title.Alignment = taCenter
-            Title.Font.Style = [fsBold]
-            Title.Caption = '+ROM'
-            Width = 64
-          end        
-          item
-            Title.Alignment = taCenter
-            Title.Font.CharSet = ANSI_CHARSET
-            Title.Font.Color = clBlack
-            Title.Font.Height = -12
-            Title.Font.Name = 'Segoe UI'
-            Title.Font.Pitch = fpVariable
-            Title.Font.Quality = fqDraft
-            Title.Font.Style = [fsBold]
-            Title.Caption = '-RAM'
-            Width = 64
-          end        
-          item
-            Title.Alignment = taCenter
-            Title.Font.CharSet = ANSI_CHARSET
-            Title.Font.Color = clBlack
-            Title.Font.Height = -12
-            Title.Font.Name = 'Segoe UI'
-            Title.Font.Pitch = fpVariable
-            Title.Font.Quality = fqDraft
-            Title.Font.Style = [fsBold, fsItalic]
-            Title.Caption = 'Status'
-          end>
-        ExtendedSelect = False
-        FixedCols = 0
-        Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goColSizing, goSmoothScroll]
-        RowCount = 17
-        TabOrder = 0
-        OnDrawCell = dgDevicesDrawCell
-      end
-    end
-    object TabSheet2: TTabSheet
-      Caption = 'CPU'
-      ClientHeight = 655
-      ClientWidth = 928
-      object Panel1: TPanel
-        Left = 0
-        Height = 50
-        Top = 0
-        Width = 928
-        Align = alTop
-        Caption = 'Panel1'
-        ClientHeight = 50
-        ClientWidth = 928
-        TabOrder = 0
-        object bStatus: TButton
-          Left = 8
-          Height = 25
-          Top = 8
-          Width = 75
-          Caption = 'Status'
-          OnClick = bStatusClick
-          TabOrder = 0
-        end
-      end
-      object mCPU: TMemo
-        Left = 0
-        Height = 605
-        Top = 50
-        Width = 928
-        Align = alClient
-        Font.CharSet = ANSI_CHARSET
-        Font.Color = clBlack
-        Font.Height = -11
-        Font.Name = 'Courier New'
-        Font.Pitch = fpFixed
-        Font.Quality = fqDraft
-        ParentFont = False
-        ScrollBars = ssAutoBoth
-        TabOrder = 1
         WordWrap = False
       end
     end
@@ -293,6 +161,176 @@ object fmMain: TfmMain
           Caption = 'Block (HEX):'
           ParentColor = False
         end
+      end
+    end
+    object TabSheet3: TTabSheet
+      Caption = 'Device'
+      ClientHeight = 655
+      ClientWidth = 928
+      object dgDevices: TDrawGrid
+        Left = 0
+        Height = 655
+        Top = 0
+        Width = 928
+        Align = alClient
+        ColCount = 7
+        Columns = <        
+          item
+            Title.Alignment = taCenter
+            Title.Font.CharSet = ANSI_CHARSET
+            Title.Font.Color = clBlack
+            Title.Font.Height = -12
+            Title.Font.Name = 'Segoe UI'
+            Title.Font.Pitch = fpVariable
+            Title.Font.Quality = fqDraft
+            Title.Font.Style = [fsBold]
+            Title.Caption = 'ID'
+            Width = 64
+          end        
+          item
+            Title.Alignment = taCenter
+            Title.Font.CharSet = ANSI_CHARSET
+            Title.Font.Color = clBlack
+            Title.Font.Height = -12
+            Title.Font.Name = 'Segoe UI'
+            Title.Font.Pitch = fpVariable
+            Title.Font.Quality = fqDraft
+            Title.Font.Style = [fsBold]
+            Title.Caption = 'Type'
+            Width = 64
+          end        
+          item
+            Title.Alignment = taCenter
+            Title.Font.CharSet = ANSI_CHARSET
+            Title.Font.Color = clBlack
+            Title.Font.Height = -12
+            Title.Font.Name = 'Segoe UI'
+            Title.Font.Pitch = fpVariable
+            Title.Font.Quality = fqDraft
+            Title.Font.Style = [fsBold]
+            Title.Caption = 'SubType'
+            Width = 64
+          end        
+          item
+            Title.Alignment = taCenter
+            Title.Font.Style = [fsBold]
+            Title.Caption = '+RAM'
+            Width = 64
+          end        
+          item
+            Title.Alignment = taCenter
+            Title.Font.Style = [fsBold]
+            Title.Caption = '+ROM'
+            Width = 64
+          end        
+          item
+            Title.Alignment = taCenter
+            Title.Font.CharSet = ANSI_CHARSET
+            Title.Font.Color = clBlack
+            Title.Font.Height = -12
+            Title.Font.Name = 'Segoe UI'
+            Title.Font.Pitch = fpVariable
+            Title.Font.Quality = fqDraft
+            Title.Font.Style = [fsBold]
+            Title.Caption = '-RAM'
+            Width = 64
+          end        
+          item
+            Title.Alignment = taCenter
+            Title.Font.CharSet = ANSI_CHARSET
+            Title.Font.Color = clBlack
+            Title.Font.Height = -12
+            Title.Font.Name = 'Segoe UI'
+            Title.Font.Pitch = fpVariable
+            Title.Font.Quality = fqDraft
+            Title.Font.Style = [fsBold, fsItalic]
+            Title.Caption = 'Status'
+          end>
+        ExtendedSelect = False
+        FixedCols = 0
+        Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goColSizing, goSmoothScroll]
+        RowCount = 17
+        TabOrder = 0
+        OnDrawCell = dgDevicesDrawCell
+      end
+    end
+    object TabSheet2: TTabSheet
+      Caption = 'CPU'
+      ClientHeight = 655
+      ClientWidth = 928
+      object Panel1: TPanel
+        Left = 832
+        Height = 655
+        Top = 0
+        Width = 96
+        Align = alRight
+        BorderStyle = bsSingle
+        Caption = 'CPU'
+        ClientHeight = 651
+        ClientWidth = 92
+        TabOrder = 0
+        object bCPU_Status: TButton
+          Left = 8
+          Height = 25
+          Top = 8
+          Width = 75
+          Caption = 'Status'
+          OnClick = bCPU_StatusClick
+          TabOrder = 0
+        end
+        object bCPU_Halt: TButton
+          Left = 8
+          Height = 25
+          Top = 48
+          Width = 75
+          Caption = 'Halt'
+          OnClick = bCPU_HaltClick
+          TabOrder = 1
+        end
+        object bCPU_Resume: TButton
+          Left = 8
+          Height = 25
+          Top = 72
+          Width = 75
+          Caption = 'Resume'
+          OnClick = bCPU_ResumeClick
+          TabOrder = 2
+        end
+        object bCPU_SoftReset: TButton
+          Left = 8
+          Height = 25
+          Top = 112
+          Width = 75
+          Caption = 'Soft Reset'
+          OnClick = bCPU_SoftResetClick
+          TabOrder = 3
+        end
+        object bCPU_HardReset: TButton
+          Left = 8
+          Height = 25
+          Top = 140
+          Width = 75
+          Caption = 'Reset'
+          OnClick = bCPU_HardResetClick
+          TabOrder = 4
+        end
+      end
+      object mCPU: TMemo
+        Left = 0
+        Height = 655
+        Top = 0
+        Width = 832
+        Align = alClient
+        Font.CharSet = ANSI_CHARSET
+        Font.Color = clBlack
+        Font.Height = -11
+        Font.Name = 'Courier New'
+        Font.Pitch = fpFixed
+        Font.Quality = fqDraft
+        ParentFont = False
+        ScrollBars = ssAutoBoth
+        TabOrder = 1
+        WordWrap = False
       end
     end
   end

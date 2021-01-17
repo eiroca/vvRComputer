@@ -29,7 +29,11 @@ type
   { TfmMain }
 
   TfmMain = class(TForm)
-    bStatus: TButton;
+    bCPU_Resume: TButton;
+    bCPU_HardReset: TButton;
+    bCPU_Status: TButton;
+    bCPU_Halt: TButton;
+    bCPU_SoftReset: TButton;
     cbTrace: TCheckBox;
     dgDevices: TDrawGrid;
     iAdrEnd: TMaskEdit;
@@ -51,16 +55,21 @@ type
     TabSheet2: TTabSheet;
     TabSheet3: TTabSheet;
     TabSheet4: TTabSheet;
-    procedure bStatusClick(Sender: TObject);
+    procedure bCPU_HardResetClick(Sender: TObject);
+    procedure bCPU_ResumeClick(Sender: TObject);
+    procedure bCPU_HaltClick(Sender: TObject);
+    procedure bCPU_SoftResetClick(Sender: TObject);
+    procedure bCPU_StatusClick(Sender: TObject);
     procedure iExecuteClick(Sender: TObject);
     procedure iDisAssClick(Sender: TObject);
     procedure iDumpClick(Sender: TObject);
     procedure dgDevicesDrawCell(Sender: TObject; aCol, aRow: integer; aRect: TRect; aState: TGridDrawState);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure pcComputerEnter(Sender: TObject);
   private
     DCU: TDeviceUnit;
-    CPU: T8085ProcessorUnit;
+    CPU: T8080ProcessorUnit;
     VPU: TVideoUnit;
     SPU: TSoundUnit;
     procedure HandleDebug(var Msg: TLMessage); message WM_DEVICE_MESSAGE;
@@ -68,6 +77,7 @@ type
     procedure drawLeft(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
     procedure drawCentered(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
     procedure drawRight(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
+    procedure UpdateCPU_GUI();
   private
     procedure logStaus(Status: string);
     procedure DumpMem(addr: word; size: word);
@@ -111,7 +121,7 @@ begin
   if not DCU.LoadBank(ROM_END, 'ROM\' + ROMBANK_01) then begin
     mOutput.Lines.Add('ROM (' + ROMBANK_01 + ') MISSING!');
   end;
-  CPU := T8085ProcessorUnit.Create(DCU);
+  CPU := T8080ProcessorUnit.Create(DCU);
   CPU.MessageHandler := fmMain.Handle;
   VPU := TVideoUnit.Create(DCU);
   VPU.MessageHandler := fmMain.Handle;
@@ -135,16 +145,18 @@ begin
   end;
 end;
 
-procedure TfmMain.bStatusClick(Sender: TObject);
+procedure TfmMain.bCPU_StatusClick(Sender: TObject);
 var
   i: integer;
-  IRQs: TIRQs;
   s: string;
+  status: RCPUStatus;
+  info: RCPUInfo;
 begin
   mCPU.Lines.Clear;
-  IRQs := CPU.cpu.GetIRQs();
-  with  CPU.cpu, CPUInfo do begin
-    mCPU.Lines.Add('Interrupts are ' + BoolToStr(GetInterruptAllowed(), 'enabled', 'disabled'));
+  status := CPU.cpu.Status;
+  info:= CPU.cpu.Info;
+  with  info, status do begin
+    mCPU.Lines.Add('Interrupts are ' + BoolToStr(IntEnabled, 'enabled', 'disabled'));
     for i := 0 to numIRQs - 1 do begin
       s := IRQsName[i] + ' is ' + BoolToStr(IRQs[i].active, 'on', 'off');
       if not IRQsNMI[i] then begin
@@ -153,6 +165,41 @@ begin
       mCPU.Lines.Add(s);
     end;
   end;
+  UpdateCPU_GUI();
+end;
+
+procedure TfmMain.bCPU_HaltClick(Sender: TObject);
+begin
+  CPU.cpu.Halted := True;
+  UpdateCPU_GUI();
+end;
+
+procedure TfmMain.bCPU_ResumeClick(Sender: TObject);
+begin
+  CPU.cpu.Halted := False;
+  UpdateCPU_GUI();
+end;
+
+procedure TfmMain.bCPU_SoftResetClick(Sender: TObject);
+begin
+  CPU.cpu.SoftReset();
+  UpdateCPU_GUI();
+end;
+
+procedure TfmMain.bCPU_HardResetClick(Sender: TObject);
+begin
+  CPU.cpu.Reset();
+  UpdateCPU_GUI();
+end;
+
+procedure TfmMain.UpdateCPU_GUI();
+var
+  halted: boolean;
+begin
+  halted := CPU.cpu.Halted;
+  bCPU_Halt.Enabled := not halted;
+  bCPU_Resume.Enabled := halted;
+  bCPU_HardReset.Enabled := halted;
 end;
 
 procedure TfmMain.iDisAssClick(Sender: TObject);
@@ -364,6 +411,11 @@ end;
 procedure TfmMain.FormDestroy(Sender: TObject);
 begin
   DCU.Terminate;
+end;
+
+procedure TfmMain.pcComputerEnter(Sender: TObject);
+begin
+  UpdateCPU_GUI();
 end;
 
 procedure TfmMain.HandleDebug(var Msg: TLMessage);

@@ -777,8 +777,8 @@ begin
   cpu.WriteMem := @WriteMemoryCall;
   cpu.ReadIO := @ReadIOCall;
   cpu.WriteIO := @WriteIOCall;
-  cpu.Halt := @HaltCall;
-  cpu.Trace := @TraceCPU;
+  cpu.OnHalt := @HaltCall;
+  cpu.OnTrace := @TraceCPU;
 end;
 
 
@@ -804,7 +804,7 @@ var
   PC: iSize32;
 begin
   s := '';
-  with cpu.CPUInfo do begin
+  with cpu.Info do begin
     PC := trace.regs[PCreg];
     with  trace.opcode^ do begin
       s := IntToHex(PC, 4) + ': ' + fmt;
@@ -846,8 +846,8 @@ begin
   cpu.WriteMem := @WriteMemoryCall;
   cpu.ReadIO := @ReadIOCall;
   cpu.WriteIO := @WriteIOCall;
-  cpu.Halt := @HaltCall;
-  cpu.Trace := @TraceCPU;
+  cpu.OnHalt := @HaltCall;
+  cpu.OnTrace := @TraceCPU;
 
 end;
 
