@@ -250,6 +250,8 @@ type
   { TProcessorUnit }
 
   TProcessorUnit = class(TDevice)
+  public
+    cpu: TCPU_ClassA;
   private
     banks: array[NumBank] of BlockNum;
   public
@@ -260,7 +262,6 @@ type
     function ReadMemoryCall(const address: word): byte;
     procedure WriteMemoryCall(const address: word; const val: byte);
   protected
-
     procedure logTrace(Msg: string);
     procedure Reset; virtual;
     procedure CopyBlock(const srcBank, dstBank: BlockNum);
@@ -274,8 +275,6 @@ type
 
   T8080ProcessorUnit = class(TProcessorUnit)
   public
-    cpu: TCPU_8080;
-  public
     constructor Create(aDCU: TDeviceUnit);
     function ReadIOCall(const address: byte): byte;
     procedure WriteIOCall(const address: byte; const val: byte);
@@ -288,8 +287,6 @@ type
   { T8085ProcessorUnit }
 
   T8085ProcessorUnit = class(TProcessorUnit)
-  public
-    cpu: TCPU_8085;
   public
     constructor Create(aDCU: TDeviceUnit);
     function ReadIOCall(const address: byte): byte;
@@ -773,12 +770,14 @@ begin
   inherited Create(aDCU);
   def.conf.devSubType := DU_CPU_8080;
   cpu := TCPU_8080.Create;
-  cpu.ReadMem := @ReadMemoryCall;
-  cpu.WriteMem := @WriteMemoryCall;
-  cpu.ReadIO := @ReadIOCall;
-  cpu.WriteIO := @WriteIOCall;
-  cpu.OnHalt := @HaltCall;
-  cpu.OnTrace := @TraceCPU;
+  with TCPU_8080(cpu) do begin
+    ReadMem := @ReadMemoryCall;
+    WriteMem := @WriteMemoryCall;
+    ReadIO := @ReadIOCall;
+    WriteIO := @WriteIOCall;
+    OnHalt := @HaltCall;
+    OnTrace := @TraceCPU;
+  end;
 end;
 
 
@@ -842,13 +841,14 @@ begin
   inherited Create(aDCU);
   def.conf.devSubType := DU_CPU_8085;
   cpu := TCPU_8085.Create;
-  cpu.ReadMem := @ReadMemoryCall;
-  cpu.WriteMem := @WriteMemoryCall;
-  cpu.ReadIO := @ReadIOCall;
-  cpu.WriteIO := @WriteIOCall;
-  cpu.OnHalt := @HaltCall;
-  cpu.OnTrace := @TraceCPU;
-
+  with TCPU_8085(cpu) do begin
+    ReadMem := @ReadMemoryCall;
+    WriteMem := @WriteMemoryCall;
+    ReadIO := @ReadIOCall;
+    WriteIO := @WriteIOCall;
+    OnHalt := @HaltCall;
+    OnTrace := @TraceCPU;
+  end;
 end;
 
 function T8085ProcessorUnit.ReadIOCall(const address: byte): byte;

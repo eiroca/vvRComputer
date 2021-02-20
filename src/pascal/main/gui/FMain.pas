@@ -69,7 +69,7 @@ type
     procedure pcComputerEnter(Sender: TObject);
   private
     DCU: TDeviceUnit;
-    CPU: T8080ProcessorUnit;
+    CPU: TProcessorUnit;
     VPU: TVideoUnit;
     SPU: TSoundUnit;
     procedure HandleDebug(var Msg: TLMessage); message WM_DEVICE_MESSAGE;
@@ -78,6 +78,7 @@ type
     procedure drawCentered(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
     procedure drawRight(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
     procedure UpdateCPU_GUI();
+    function getUsage(usage: AMemoryUsage): string;
   private
     procedure logStaus(Status: string);
     procedure DumpMem(addr: word; size: word);
@@ -92,6 +93,9 @@ var
 implementation
 
 {$R *.lfm}
+
+const
+  MemoryUsageName: array [EMemoryUsage] of string = ('Code', 'Data', 'reference', 'reference');
 
 function getVal(val: string): iSize16;
 var
@@ -121,7 +125,7 @@ begin
   if not DCU.LoadBank(ROM_END, 'ROM\' + ROMBANK_01) then begin
     mOutput.Lines.Add('ROM (' + ROMBANK_01 + ') MISSING!');
   end;
-  CPU := T8080ProcessorUnit.Create(DCU);
+  CPU := T8085ProcessorUnit.Create(DCU);
   CPU.MessageHandler := fmMain.Handle;
   VPU := TVideoUnit.Create(DCU);
   VPU.MessageHandler := fmMain.Handle;
@@ -154,7 +158,7 @@ var
 begin
   mCPU.Lines.Clear;
   status := CPU.cpu.Status;
-  info:= CPU.cpu.Info;
+  info := CPU.cpu.Info;
   with  info, status do begin
     mCPU.Lines.Add('Interrupts are ' + BoolToStr(IntEnabled, 'enabled', 'disabled'));
     for i := 0 to numIRQs - 1 do begin
@@ -202,6 +206,17 @@ begin
   bCPU_HardReset.Enabled := halted;
 end;
 
+function TfmMain.getUsage(usage: AMemoryUsage): string;
+var
+  mu: EMemoryUsage;
+begin
+  Result := '';
+  for mu in (usage * [mData, mCode]) do begin
+    if (Result <> '') then Result := Result + ' ';
+    Result := Result + MemoryUsageName[mu];
+  end;
+end;
+
 procedure TfmMain.iDisAssClick(Sender: TObject);
 var
   node: TAvgLvlTreeNode;
@@ -210,7 +225,6 @@ var
   instList: TInstructionList;
   memMap: TMemoryMap;
   memInfo: PMemoryArea;
-  mu: EMemoryUsage;
   i, cnt: integer;
   inst: PInstruction;
   s, cmt: string;
@@ -248,7 +262,7 @@ begin
         with memInfo^ do begin
           if (refData in usage) then begin
             s := IntToHex(addrStart, 4);
-            s := 'D' + s + TAB + '.equ' + TAB + '$' + s + TAB + TAB + '; ' + IntToHex(CPU.cpu.ReadMem(addrStart), 2);
+            s := 'D' + s + TAB + '.equ' + TAB + '$' + s + TAB + TAB + '; ' + IntToHex(addrStart, 4) + ': ' + IntToHex(CPU.cpu.ReadMem(addrStart), 2);
             mTools.Lines.Add(s);
           end;
         end;
@@ -256,12 +270,13 @@ begin
       mTools.Lines.Add(';');
       mTools.Lines.Add('; Code');
       mTools.Lines.Add(';');
+      mTools.Lines.Add(#9 + '.org' + #9 + '$' + IntToHex(adrStart, 4));
       if (cnt > 0) then begin
         for i := 0 to cnt - 1 do begin
           inst := instList[i];
           with inst^ do begin
             memInfo := memMap.FindArea(addr);
-            cmt := '; ' + IntToHex(opcode, 2);
+            cmt := '; ' + IntToHex(addr, 4) + ': ' + IntToHex(opcode, 2);
             if (def^.len = 1) then begin
               if (Pos(TAB, def^.fmt) <> 0) then begin
                 cmt := cmt;
@@ -298,16 +313,16 @@ begin
       mTools.Lines.Add('');
       mTools.Lines.Add('Memory Map:');
       for Node in memMap do begin
+        s := '';
         memInfo := PMemoryArea(Node.Data);
         with memInfo^ do begin
-          s := IntToHex(addrStart, 4);
           if (len > 1) then begin
-            s := s + '-' + IntToHex(addrStart + len - 1, 4);
+            s := Format('%.4x - %.4x %s', [addrStart, addrStart + len - 1, getUsage(usage)]);
+          end
+          else if (len > 0) then begin
+            s := Format('%.4x %s', [addrStart, getUsage(usage)]);
           end;
-          for mu in (usage * [mData, mCode]) do begin
-            s := s + ' ' + GetEnumName(TypeInfo(EMemoryUsage), Ord(mu));
-          end;
-          mTools.Lines.Add(s);
+          if (s <> '') then mTools.Lines.Add(s);
         end;
       end;
     finally
@@ -495,6 +510,3 @@ begin
 end;
 
 end.
-
-
-

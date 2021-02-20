@@ -25,6 +25,7 @@ uses
 type
   bit = 0..1;
   nibble = 0..15;
+
   _8bit = bitpacked array [0..7] of bit;
   _16bit = bitpacked array [0..15] of bit;
 
@@ -38,7 +39,8 @@ type
 type
   OpcodeCall = procedure() of object;
 
-  EMode = (imp, imm, ind_reg, ind_abs, reg, reg_i, cjp_abs, jmp_abs, abs);
+  EGroup = (arith, branch, control, Data, illegal, logic, stack);
+  EMode = (imp, imm, ind_reg, reg, reg_i, abs);
 
   TFlags = array of boolean;
 
@@ -66,6 +68,7 @@ type
     code: OpcodeCall;
     inst: string;
     fmt: string;
+    group: EGroup;
     mode: EMode;
     len: integer;
     cycle: array of integer;
@@ -114,13 +117,13 @@ type
   { Memory Map }
 
   EMemoryUsage = (mCode, mData, refCode, refData);
-  MemoryUsage = set of EMemoryUsage;
+  AMemoryUsage = set of EMemoryUsage;
 
   PMemoryArea = ^RMemoryArea;
   RMemoryArea = record
     addrStart: iSize32;
     len: iSize32;
-    usage: MemoryUsage;
+    usage: AMemoryUsage;
   end;
 
   TMemoryMap = class(TAvgLvlTree)
@@ -132,7 +135,7 @@ type
     procedure Pack();
     function FindArea(const addr: iSize32): PMemoryArea;
     procedure AddCode(const addr: iSize32; const aLen: integer);
-    procedure AddRef(const addr: iSize32; const aType: MemoryUsage);
+    procedure AddRef(const addr: iSize32; const aType: AMemoryUsage; const aLen: integer = 0);
   end;
 
 type
@@ -283,33 +286,36 @@ var
   nodeOld: TAvgLvlTreeNode;
   memoryArea: PMemoryArea;
   memoryAreaOld: PMemoryArea;
-  usage: MemoryUsage;
-  usageOld: MemoryUsage;
+  usage: AMemoryUsage;
+  usageOld: AMemoryUsage;
   unused: TList;
   i: integer;
+  newBlock: boolean;
 begin
   nodeOld := nil;
   memoryAreaOld := nil;
   usageOld := [];
   unused := TList.Create;
-  for Node in GetEnumeratorHighToLow do begin
+  for Node in GetEnumerator do begin
     memoryArea := PMemoryArea(Node.Data);
     usage := memoryArea^.usage;
-    if (nodeOld = nil) or (usageOld <> (usage * [mCode, mData])) then begin
+    newBlock := (memoryAreaOld = nil);
+    if not newBlock and ((usageOld * [mCode, mData]) <> (usage * [mCode, mData])) then newBlock := True;
+    if not newBlock and ((memoryAreaOld^.addrStart + memoryAreaOld^.len) <> memoryArea^.addrStart) then newBlock := True;
+    if newBlock then begin
       nodeOld := node;
       memoryAreaOld := memoryArea;
       usageOld := usage;
     end
     else begin
-      memoryArea^.len := memoryArea^.len + memoryAreaOld^.len;
-      unused.Add(nodeOld);
-      nodeOld := node;
-      memoryAreaOld := memoryArea;
-      usageOld := memoryAreaOld^.usage;
-    end;
-    if (usageOld * [refData, refCode] <> []) then begin
-      nodeOld := nil;
-      memoryAreaOld := nil;
+      memoryAreaOld^.len := memoryAreaOld^.len + memoryArea^.len;
+      if (usage * [refCode, refData] = []) then begin
+        unused.Add(node);
+      end
+      else begin
+        memoryArea^.len := 0;
+        memoryArea^.usage := memoryArea^.usage - [mCode, mData];
+      end;
     end;
   end;
   for i := 0 to unused.Count - 1 do begin
@@ -358,7 +364,7 @@ begin
   end;
 end;
 
-procedure TMemoryMap.AddRef(const addr: iSize32; const aType: MemoryUsage);
+procedure TMemoryMap.AddRef(const addr: iSize32; const aType: AMemoryUsage; const aLen: integer = 0);
 var
   node: TAvgLvlTreeNode;
   memoryArea: PMemoryArea;
@@ -368,7 +374,7 @@ begin
     new(memoryArea);
     with memoryArea^ do begin
       addrStart := addr;
-      len := 0;
+      len := aLen;
       usage := aType;
     end;
     Add(memoryArea);
@@ -489,7 +495,7 @@ begin
       opcode := Step;
     end
     else begin
-      opcode:= nil;
+      opcode := nil;
     end;
     if (aTrace) then begin
       FStatus.opcode := opcode;
@@ -523,11 +529,13 @@ begin
         memMap.AddRef(addr, [refCode]);
       end;
       if (def^.len = 3) then begin
-        if (def^.mode = jmp_abs) or (def^.mode = cjp_abs) then begin
-          memMap.AddRef(param1, [refCode]);
-        end
-        else if (def^.mode = imm) or (def^.mode = abs) then begin
-          memMap.AddRef(param1, [mData, refData]);
+        if (def^.mode = EMode.abs) then begin
+          if (def^.group = EGroup.branch) then begin
+            memMap.AddRef(param1, [refCode]);
+          end
+          else if (def^.group = EGroup.Data) then begin
+            memMap.AddRef(param1, [mData, refData], 1);
+          end;
         end;
       end;
     end;
