@@ -39,6 +39,11 @@ type
 
   TCPU_8080 = class(TCPU_ClassA)
   protected
+    procedure push_PC(); inline;
+    procedure pull_PC(); inline;
+    procedure push(v: iSize8); inline;
+    function pull(): iSize8; inline;
+  protected
     // 8080 Registers
     A: iSize8;
     B: iSize8;
@@ -47,6 +52,9 @@ type
     E: iSize8;
     H: iSize8;
     L: iSize8;
+    SP: iSize16;
+  protected
+    states: int64;
   private
     // Emulator hooks
     FReadIO: ReadIOCall;
@@ -302,7 +310,7 @@ type
     procedure op_XRI;
     procedure op_XTHL;
   public
-    constructor Create;
+    constructor Create(allowIllegal: boolean = True);
   public
     procedure Reset(); override;
   protected
@@ -313,14 +321,14 @@ type
 
 implementation
 
-constructor TCPU_8080.Create;
+constructor TCPU_8080.Create(allowIllegal: boolean = True);
 begin
-  inherited;
+  inherited Create;
   SetLength(OpCodes, 256);
   {$include CPUTable_8080.inc}
 end;
 
-procedure TCPU_8080.Reset;
+procedure TCPU_8080.Reset();
 begin
   A := 0;
   B := 0;
@@ -368,7 +376,7 @@ begin;
   end;
 end;
 
-procedure TCPU_8080.UpdateCPUInfo;
+procedure TCPU_8080.UpdateCPUInfo();
 begin;
   with FInfo do begin
     dataSize := 8;
@@ -423,6 +431,37 @@ begin
   end;
 end;
 
+procedure TCPU_8080.push_PC();
+begin
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC shr 8);
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, PC and $FF);
+end;
+
+procedure TCPU_8080.pull_PC();
+var
+  b1, b2: iSize8;
+begin
+  b1 := ReadMem(SP);
+  SP := (SP + 1) and $FFFF;
+  b2 := ReadMem(SP);
+  SP := (SP + 1) and $FFFF;
+  PC := b1 + b2 shl 8;
+end;
+
+procedure TCPU_8080.push(v: iSize8);
+begin
+  SP := (SP - 1) and $FFFF;
+  WriteMem(SP, v);
+end;
+
+function TCPU_8080.pull(): iSize8;
+begin
+  Result := ReadMem(SP);
+  SP := (SP + 1) and $FFFF;
+end;
+
 procedure TCPU_8080.op_NotSup;
 begin
   op_NOP;
@@ -461,22 +500,20 @@ end;
 
 procedure TCPU_8080.op_IN;
 var
-  b1: iSize8;
+  MV: uint8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  if Assigned(ReadIO) then  A := ReadIO(b1);
+  MV := imm8();
+  if Assigned(ReadIO) then  A := ReadIO(MV);
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_OUT;
 var
-  b1: iSize8;
+  MV: uint8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  if Assigned(WriteIO) then  WriteIO(b1, A);
+  MV := imm8();
+  if Assigned(WriteIO) then  WriteIO(MV, A);
   Inc(cycles, 3);
   Inc(states, 10);
 end;
@@ -510,53 +547,33 @@ begin
 end;
 
 procedure TCPU_8080.op_JMP;
-var
-  b1, b2: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := b1 + b2 shl 8;
+  PC_abs();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_CALL;
 var
-  b1, b2: iSize8;
+  addr: uint16;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
-  PC := b1 + b2 shl 8;
+  addr := addr_abs();
+  push_PC();
+  PC := addr;
   Inc(cycles, 5);
   Inc(states, 17);
 end;
 
 procedure TCPU_8080.op_RET;
-var
-  b1, b2: iSize8;
 begin
-  b1 := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
-  b2 := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
-  PC := b1 + b2 shl 8;
+  pull_PC();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_RST_0;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0000;
   Inc(cycles, 3);
   Inc(states, 11);
@@ -564,10 +581,7 @@ end;
 
 procedure TCPU_8080.op_RST_1;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0008;
   Inc(cycles, 3);
   Inc(states, 11);
@@ -575,10 +589,7 @@ end;
 
 procedure TCPU_8080.op_RST_2;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0010;
   Inc(cycles, 3);
   Inc(states, 11);
@@ -586,10 +597,7 @@ end;
 
 procedure TCPU_8080.op_RST_3;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0018;
   Inc(cycles, 3);
   Inc(states, 11);
@@ -597,10 +605,7 @@ end;
 
 procedure TCPU_8080.op_RST_4;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0020;
   Inc(cycles, 3);
   Inc(states, 11);
@@ -608,10 +613,7 @@ end;
 
 procedure TCPU_8080.op_RST_5;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0028;
   Inc(cycles, 3);
   Inc(states, 11);
@@ -619,10 +621,7 @@ end;
 
 procedure TCPU_8080.op_RST_6;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0030;
   Inc(cycles, 3);
   Inc(states, 11);
@@ -630,24 +629,16 @@ end;
 
 procedure TCPU_8080.op_RST_7;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC shr 8);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, PC and $FF);
+  push_PC();
   PC := $0038;
   Inc(cycles, 3);
   Inc(states, 11);
 end;
 
 procedure TCPU_8080.op_JC;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_C]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -657,14 +648,9 @@ begin
 end;
 
 procedure TCPU_8080.op_JNC;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_C]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -674,14 +660,9 @@ begin
 end;
 
 procedure TCPU_8080.op_JZ;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_Z]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -691,14 +672,9 @@ begin
 end;
 
 procedure TCPU_8080.op_JNZ;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_Z]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -708,14 +684,9 @@ begin
 end;
 
 procedure TCPU_8080.op_JM;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_S]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -725,14 +696,9 @@ begin
 end;
 
 procedure TCPU_8080.op_JP;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_S]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -742,14 +708,9 @@ begin
 end;
 
 procedure TCPU_8080.op_JPE;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_P]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -759,14 +720,9 @@ begin
 end;
 
 procedure TCPU_8080.op_JPO;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_P]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := b1 + b2 shl 8;
+    PC_abs();
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -776,13 +732,13 @@ begin
 end;
 
 procedure TCPU_8080.op_CZ;
+var
+  addr: iSize16;
 begin
   if (F[Flag_Z]) then begin
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := ReadMem((PC + 1) and $FFFF) shl 8 + ReadMem(PC);
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -794,13 +750,13 @@ begin
 end;
 
 procedure TCPU_8080.op_CNZ;
+var
+  addr: iSize16;
 begin
   if (not F[Flag_Z]) then begin
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := ReadMem((PC + 1) and $FFFF) shl 8 + ReadMem(PC);
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -813,18 +769,12 @@ end;
 
 procedure TCPU_8080.op_CC;
 var
-  b1, b2: iSize8;
+  addr: iSize16;
 begin
   if (F[Flag_Z]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := b1 + b2 shl 8;
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -837,18 +787,12 @@ end;
 
 procedure TCPU_8080.op_CNC;
 var
-  b1, b2: iSize8;
+  addr: iSize16;
 begin
   if (not F[Flag_C]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := b1 + b2 shl 8;
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -861,18 +805,12 @@ end;
 
 procedure TCPU_8080.op_CPE;
 var
-  b1, b2: iSize8;
+  addr: iSize16;
 begin
   if (F[Flag_P]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := b1 + b2 shl 8;
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -885,18 +823,12 @@ end;
 
 procedure TCPU_8080.op_CPO;
 var
-  b1, b2: iSize8;
+  addr: iSize16;
 begin
   if (not F[Flag_P]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := b1 + b2 shl 8;
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -909,18 +841,12 @@ end;
 
 procedure TCPU_8080.op_CM;
 var
-  b1, b2: iSize8;
+  addr: iSize16;
 begin
   if (F[Flag_S]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := b1 + b2 shl 8;
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -933,18 +859,12 @@ end;
 
 procedure TCPU_8080.op_CP;
 var
-  b1, b2: iSize8;
+  addr: iSize16;
 begin
   if (not F[Flag_S]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := b1 + b2 shl 8;
+    addr := addr_abs();
+    push_PC();
+    PC := addr;
     Inc(cycles, 5);
     Inc(states, 17);
   end
@@ -956,19 +876,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RM;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_S]) then begin
-    b1 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    b2 := ReadMem(PC);
-    PC := (PC + 1) and $FFFF;
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC shr 8);
-    SP := (SP - 1) and $FFFF;
-    WriteMem(SP, PC and $FF);
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -979,15 +889,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RPE;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_P]) then begin
-    b1 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    b2 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -998,15 +902,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RC;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_C]) then begin
-    b1 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    b2 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -1017,15 +915,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RNC;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_C]) then begin
-    b1 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    b2 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -1036,15 +928,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RZ;
-var
-  b1, b2: iSize8;
 begin
   if (F[Flag_Z]) then begin
-    b1 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    b2 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -1055,15 +941,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RNZ;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_Z]) then begin
-    b1 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    b2 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -1074,15 +954,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RPO;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_P]) then begin
-    b1 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    b2 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -1093,15 +967,9 @@ begin
 end;
 
 procedure TCPU_8080.op_RP;
-var
-  b1, b2: iSize8;
 begin
   if (not F[Flag_S]) then begin
-    b1 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    b2 := ReadMem(SP);
-    SP := (SP + 1) and $FFFF;
-    PC := b1 + b2 shl 8;
+    pull_PC();
     Inc(cycles, 3);
     Inc(states, 11);
   end
@@ -1259,14 +1127,13 @@ end;
 
 procedure TCPU_8080.op_ACI;
 var
-  t, b1, cy: iSize8;
+  t, v, cy: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  v := imm8();
   cy := bool_bit[F[Flag_C]];
-  t := A + b1 + cy;
+  t := A + v + cy;
   F[Flag_C] := (t > $FF);
-  F[Flag_H] := (A xor b1 xor t) <> 0;
+  F[Flag_H] := (A xor v xor t) <> 0;
   t := t and $FF;
   F[Flag_Z] := (t = $00);
   F[Flag_S] := (t and $80) = $80;
@@ -1417,15 +1284,13 @@ end;
 
 procedure TCPU_8080.op_ADI;
 var
-  b1: iSize8;
-  t: iSize8;
+  t, v: iSize8;
 begin
   // Add immediate to A
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  t := A + b1;
+  v := imm8();
+  t := A + v;
   F[Flag_C] := (t > $FF);
-  F[Flag_H] := (A xor b1 xor t) <> 0;
+  F[Flag_H] := (A xor v xor t) <> 0;
   t := t and $FF;
   F[Flag_Z] := (t = $00);
   F[Flag_S] := (t and $80) = $80;
@@ -1763,13 +1628,12 @@ end;
 
 procedure TCPU_8080.op_SUI;
 var
-  b1, t: iSize8;
+  t, v: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  t := A - b1;
+  v := imm8();
+  t := A - v;
   F[Flag_C] := (t < $00);
-  F[Flag_H] := (not (A xor b1 xor t)) <> 0;
+  F[Flag_H] := (not (A xor v xor t)) <> 0;
   A := t and $FF;
   F[Flag_Z] := (A = $00);
   F[Flag_P] := parity_of_bits[A];
@@ -1910,12 +1774,11 @@ end;
 
 procedure TCPU_8080.op_SBI;
 var
-  t, b1, cy: iSize8;
+  t, v, cy: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  v := imm8();
   cy := bool_bit[F[Flag_C]];
-  t := A - b1 - CY;
+  t := A - v - CY;
   F[Flag_C] := (t < $00);
   F[Flag_H] := (not (A xor L xor t)) <> 0;
   A := t and $FF;
@@ -2199,12 +2062,11 @@ end;
 
 procedure TCPU_8080.op_ANI;
 var
-  t, b1: iSize8;
+  t, v: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  A := A and b1;
-  t := A or b1;
+  v := imm8();
+  A := A and v;
+  t := A or v;
   F[Flag_C] := False;
   F[Flag_Z] := (A = $00);
   F[Flag_P] := parity_of_bits[A];
@@ -2315,11 +2177,10 @@ end;
 
 procedure TCPU_8080.op_ORI;
 var
-  b1: iSize8;
+  v: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  A := A or b1;
+  v := imm8();
+  A := A or v;
   F[Flag_Z] := (A = $00);
   F[Flag_P] := parity_of_bits[A];
   F[Flag_S] := (A and $80) = $80;
@@ -2430,11 +2291,10 @@ end;
 
 procedure TCPU_8080.op_XRI;
 var
-  b1: iSize8;
+  v: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  A := A xor b1;
+  v := imm8();
+  A := A xor v;
   F[Flag_Z] := (A = $00);
   F[Flag_P] := parity_of_bits[A];
   F[Flag_S] := (A and $80) = $80;
@@ -2565,14 +2425,12 @@ end;
 
 procedure TCPU_8080.op_CPI;
 var
-  b1: iSize8;
-  t: iSize8;
+  t, v: iSize8;
 begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  t := A - b1;
+  v := imm8();
+  t := A - v;
   F[Flag_C] := (t < 0);
-  F[Flag_H] := (not (A xor t xor b1) and $10) <> 0;
+  F[Flag_H] := (not (A xor t xor v) and $10) <> 0;
   t := t and $FF;
   F[Flag_Z] := (t = $00);
   F[Flag_P] := parity_of_bits[t];
@@ -3024,8 +2882,7 @@ end;
 procedure TCPU_8080.op_MVI_A;
 begin
   // Load A with an immediate
-  A := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  A := imm8();
   Inc(cycles, 2);
   Inc(states, 7);
 end;
@@ -3033,8 +2890,7 @@ end;
 procedure TCPU_8080.op_MVI_B;
 begin
   // Load B with an immediate
-  B := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  B := imm8();
   Inc(cycles, 2);
   Inc(states, 7);
 end;
@@ -3042,8 +2898,7 @@ end;
 procedure TCPU_8080.op_MVI_C;
 begin
   // Load C with an immediate
-  C := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  C := imm8();
   Inc(cycles, 2);
   Inc(states, 7);
 end;
@@ -3051,8 +2906,7 @@ end;
 procedure TCPU_8080.op_MVI_D;
 begin
   // Load D with an immediate
-  D := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  D := imm8();
   Inc(cycles, 2);
   Inc(states, 7);
 end;
@@ -3060,8 +2914,7 @@ end;
 procedure TCPU_8080.op_MVI_E;
 begin
   // Load E with an immediate
-  E := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  E := imm8();
   Inc(cycles, 2);
   Inc(states, 7);
 end;
@@ -3069,8 +2922,7 @@ end;
 procedure TCPU_8080.op_MVI_H;
 begin
   // Load H with an immediate
-  H := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  H := imm8();
   Inc(cycles, 2);
   Inc(states, 7);
 end;
@@ -3078,8 +2930,7 @@ end;
 procedure TCPU_8080.op_MVI_L;
 begin
   // Load L with an immediate
-  L := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  L := imm8();
   Inc(cycles, 2);
   Inc(states, 7);
 end;
@@ -3091,8 +2942,7 @@ var
 begin
   // Write byte to memory pointed by HL
   HL := H shl 8 + L;
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  b1 := imm8();
   WriteMem(HL, b1);
   Inc(cycles, 3);
   Inc(states, 10);
@@ -3100,83 +2950,67 @@ end;
 
 procedure TCPU_8080.op_POP_PSW;
 begin
-  FlagsFromByte(ReadMem(SP));
-  SP := (SP + 1) and $FFFF;
-  A := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
+  FlagsFromByte(pull());
+  A := pull();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_POP_B;
 begin
-  C := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
-  B := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
+  C := pull();
+  B := pull();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_POP_D;
 begin
-  E := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
-  D := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
+  E := pull();
+  D := pull();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_POP_H;
 begin
-  L := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
-  H := ReadMem(SP);
-  SP := (SP + 1) and $FFFF;
+  L := pull();
+  H := pull();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_PUSH_PSW;
 begin
-  SP := (SP - 1) and $FFFF;
   F[1] := True;
   F[3] := False;
   F[5] := False;
-  WriteMem(SP, FlagsToByte());
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, A);
+  push(FlagsToByte());
+  push(A);
   Inc(cycles, 3);
   Inc(states, 11);
 end;
 
 procedure TCPU_8080.op_PUSH_B;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, B);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, C);
+  push(B);
+  push(C);
   Inc(cycles, 3);
   Inc(states, 11);
 end;
 
 procedure TCPU_8080.op_PUSH_D;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, E);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, D);
+  push(E);
+  push(D);
   Inc(cycles, 3);
   Inc(states, 11);
 end;
 
 procedure TCPU_8080.op_PUSH_H;
 begin
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, L);
-  SP := (SP - 1) and $FFFF;
-  WriteMem(SP, H);
+  push(L);
+  push(H);
   Inc(cycles, 3);
   Inc(states, 11);
 end;
@@ -3273,10 +3107,8 @@ end;
 procedure TCPU_8080.op_LXI_B;
 begin
   // Load BC with a 16 bit immediate
-  C := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  B := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  C := imm8();
+  B := imm8();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
@@ -3284,10 +3116,8 @@ end;
 procedure TCPU_8080.op_LXI_D;
 begin
   // Load DE with a 16 bit immediate
-  E := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  D := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  E := imm8();
+  D := imm8();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
@@ -3295,38 +3125,24 @@ end;
 procedure TCPU_8080.op_LXI_H;
 begin
   // Load HL with a 16 bit immediate
-  L := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  H := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
+  L := imm8();
+  H := imm8();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_LXI_SP;
-var
-  b1, b2: iSize8;
 begin
-  // Load HL with a 16 bit immediate
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  SP := b2 shl 8 + b1;
+  // Load SP with a 16 bit immediate
+  SP := imm16();
   Inc(cycles, 3);
   Inc(states, 10);
 end;
 
 procedure TCPU_8080.op_LDA;
-var
-  b1, b2: iSize8;
 begin
   // Load A from memory
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  A := ReadMem(b2 shl 8 + b1);
+  A := data_abs();
   Inc(cycles, 4);
   Inc(states, 13);
 end;
@@ -3355,31 +3171,23 @@ end;
 
 procedure TCPU_8080.op_LHLD;
 var
-  b1, b2: iSize8;
-  adr: iSize16;
+  MA: iSize16;
 begin
   // Load HL from immediate address
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  adr := b2 shl 8 + b1;
-  L := ReadMem(adr);
-  H := ReadMem((adr + 1) and $FFFF);
+  MA := addr_abs();
+  L := ReadMem(MA);
+  H := ReadMem((MA + 1) and $FFFF);
   Inc(cycles, 5);
   Inc(states, 16);
 end;
 
 procedure TCPU_8080.op_STA;
 var
-  b1, b2: iSize8;
+  MA: iSize16;
 begin
   // Store A in memory
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  WriteMem(b2 shl 8 + b1, A);
+  MA := addr_abs();
+  WriteMem(MA, A);
   Inc(cycles, 4);
   Inc(states, 13);
 end;
@@ -3408,23 +3216,19 @@ end;
 
 procedure TCPU_8080.op_SHLD;
 var
-  b1, b2: iSize8;
-  adr: iSize16;
+  MA: iSize16;
 begin
   // Write HL in memory
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  adr := b2 shl 8 + b1;
-  WriteMem(adr, L);
-  WriteMem((adr + 1) and $FFFF, H);
+  MA := addr_abs();
+  WriteMem(MA, L);
+  WriteMem((MA + 1) and $FFFF, H);
   Inc(cycles, 5);
   Inc(states, 16);
 end;
 
 procedure TCPU_8080.op_XCHG;
-var t: iSize8;
+var
+  t: iSize8;
 begin
   t := H;
   H := D;
@@ -3468,3 +3272,4 @@ begin
 end;
 
 end.
+

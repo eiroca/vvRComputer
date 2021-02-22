@@ -139,7 +139,7 @@ end;
 
 procedure TfmMain.iExecuteClick(Sender: TObject);
 var
-  addr: uint16;
+  addr: iSize16;
   adrStart: iSize16;
 begin
   adrStart := getVal(iAdrStart.Text);
@@ -220,7 +220,7 @@ end;
 procedure TfmMain.iDisAssClick(Sender: TObject);
 var
   node: TAvgLvlTreeNode;
-  addr: uint16;
+  addr: iSize16;
   adrStart, adrEnd: iSize16;
   instList: TInstructionList;
   memMap: TMemoryMap;
@@ -286,10 +286,10 @@ begin
               end;
             end
             else if (def^.len = 2) then begin
-              cmt := cmt + ' ' + IntToHeX(param1, 2);
+              cmt := cmt + ' ' + IntToHeX(operand, 2);
             end
             else if (def^.len = 3) then begin
-              s := IntToHeX(param1, 4);
+              s := IntToHeX(operand, 4);
               cmt := cmt + ' ' + Copy(s, 3, 2) + ' ' + Copy(s, 1, 2);
             end;
             if (memInfo = nil) then begin
@@ -303,7 +303,7 @@ begin
                 s := '';
               end;
             end;
-            s := s + TAB + Format(def^.fmt, [param1]) + TAB + TAB + cmt;
+            s := s + TAB + Format(def^.fmt, [operand]) + TAB + TAB + cmt;
             mTools.Lines.Add(s);
           end;
         end;
@@ -510,3 +510,4 @@ begin
 end;
 
 end.
+

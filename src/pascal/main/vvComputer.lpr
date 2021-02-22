@@ -2,10 +2,9 @@ program vvComputer;
 
 {$mode objfpc}{$H+}
 
-uses {$IFDEF UNIX} {$IFDEF UseCThreads}
-  cthreads, {$ENDIF} {$ENDIF}
-  Interfaces, // this includes the LCL widgetset
-  Forms, // -
+uses // -
+ {$IFDEF UNIX} {$IFDEF UseCThreads} cthreads, {$ENDIF} {$ENDIF}
+  Interfaces, Forms, // -
   FMain;
 
 {$R *.res}
@@ -17,7 +16,4 @@ begin
   Application.CreateForm(TfmMain, fmMain);
   Application.Run;
 end.
-
-
-
 

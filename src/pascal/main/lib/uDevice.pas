@@ -22,7 +22,7 @@ uses
   {$ifdef unix}
   cthreads,
   {$endif}
-  uCPU, uCPU_8080, uCPU_8085,
+  uCPU, uCPU_8080, uCPU_8085, uCPU_6502,
   AvgLvlTree, typinfo,
   LMessages, LCLIntf, LCLType, LCLProc,
   Classes, SysUtils;
@@ -259,8 +259,8 @@ type
   public
     constructor Create(aDCU: TDeviceUnit);
   private
-    function ReadMemoryCall(const address: word): byte;
-    procedure WriteMemoryCall(const address: word; const val: byte);
+    function ReadMemoryCall(const address: iSize16): iSize8;
+    procedure WriteMemoryCall(const address: iSize16; const val: iSize8);
   protected
     procedure logTrace(Msg: string);
     procedure Reset; virtual;
@@ -286,15 +286,9 @@ type
 
   { T8085ProcessorUnit }
 
-  T8085ProcessorUnit = class(TProcessorUnit)
+  T8085ProcessorUnit = class(T8080ProcessorUnit)
   public
     constructor Create(aDCU: TDeviceUnit);
-    function ReadIOCall(const address: byte): byte;
-    procedure WriteIOCall(const address: byte; const val: byte);
-    procedure HaltCall;
-    procedure TraceCPU(const trace: RCPUStatus);
-  protected
-    procedure Reset; override;
   end;
 
   { TVideoUnit }
@@ -798,20 +792,18 @@ end;
 
 procedure T8080ProcessorUnit.TraceCPU(const trace: RCPUStatus);
 var
-  s: string;
+  s, n: string;
   i: integer;
   PC: iSize32;
 begin
   s := '';
   with cpu.Info do begin
     PC := trace.regs[PCreg];
-    with  trace.opcode^ do begin
-      s := IntToHex(PC, 4) + ': ' + fmt;
-      s := StringReplace(s, '$%.4x', GetEnumName(TypeInfo(Emode), Ord(mode)), [rfReplaceAll]);
-      s := StringReplace(s, '$%.2x', GetEnumName(TypeInfo(Emode), Ord(mode)), [rfReplaceAll]);
-      if (Pos(TAB, s) = 0) then s := s + TAB;
+    with  trace.instr.def^ do begin
+      s := Format(StringReplace(fmt, TAB, ' ', [rfReplaceAll]), [trace.instr.operand]);
+      s := Copy(s + '                 ', 1, 15);
+      s := IntToHex(PC, 4) + ': ' + s;
     end;
-    s := s + TAB;
     for i := 0 to numRegs - 1 do begin
       if (i <> PCreg) then begin
         s := s + ' ' + regsName[i] + ': $' + IntToHex(trace.regs[i], regsSize[i] * 2);
@@ -822,7 +814,16 @@ begin
       if trace.flags[i] then s := s + flagsName[i] else s := s + ' ';
     end;
     for i := 0 to numExtras - 1 do begin
-      s := s + ' ' + extrasName[i] + ': $' + IntToHex(trace.extras[i], extrasSize[i] * 2);
+      n := extrasName[i];
+      if (Length(n) > 3) then begin
+        n := RightStr(n, 3);
+        if (n = '+1)') then n := ''
+        else if (n = '+2)') then n := ''
+        else if (n = '+3)') then n := '';
+      end
+      else n := '';
+      if (n <> '') then  s := s + ' ' + extrasName[i] + ': $' + IntToHex(trace.extras[i], extrasSize[i] * 2)
+      else s := s + ' $' + IntToHex(trace.extras[i], extrasSize[i] * 2);
     end;
   end;
   logTrace(s);
@@ -851,32 +852,6 @@ begin
   end;
 end;
 
-function T8085ProcessorUnit.ReadIOCall(const address: byte): byte;
-begin
-  Result := 0;
-end;
-
-procedure T8085ProcessorUnit.WriteIOCall(const address: byte; const val: byte);
-begin
-
-end;
-
-procedure T8085ProcessorUnit.HaltCall;
-begin
-  halt := True;
-end;
-
-procedure T8085ProcessorUnit.TraceCPU(const trace: RCPUStatus);
-begin
-  logTrace('Trace CPU');
-end;
-
-procedure T8085ProcessorUnit.Reset;
-begin
-  inherited Reset;
-  cpu.Reset;
-end;
-
 { TProcessingUnit }
 
 constructor TProcessorUnit.Create(aDCU: TDeviceUnit);
@@ -900,7 +875,7 @@ begin
   PostMessage(MessageHandler, WM_CPU_TRACE, WParam(PMessage), 0);
 end;
 
-function TProcessorUnit.ReadMemoryCall(const address: word): byte;
+function TProcessorUnit.ReadMemoryCall(const address: iSize16): iSize8;
 var
   bank: BlockNum;
   offset: integer;
@@ -912,7 +887,7 @@ begin
   Result := b.Data[offset];
 end;
 
-procedure TProcessorUnit.WriteMemoryCall(const address: word; const val: byte);
+procedure TProcessorUnit.WriteMemoryCall(const address: iSize16; const val: iSize8);
 var
   bank: BlockNum;
   offset: integer;
@@ -996,3 +971,4 @@ begin
 end;
 
 end.
+

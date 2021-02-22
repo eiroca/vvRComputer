@@ -1,7 +1,7 @@
 object fmMain: TfmMain
-  Left = 506
+  Left = 433
   Height = 706
-  Top = 180
+  Top = 173
   Width = 936
   Caption = 'Virtual Vintage Computer'
   ClientHeight = 706

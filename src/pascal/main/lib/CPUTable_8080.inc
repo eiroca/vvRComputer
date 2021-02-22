@@ -6,7 +6,6 @@ with OpCodes[$04] do begin code:= @op_INR_B; inst:= 'INR'; fmt:= 'INR'+#9+'B'; g
 with OpCodes[$05] do begin code:= @op_DCR_B; inst:= 'DCR'; fmt:= 'DCR'+#9+'B'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
 with OpCodes[$06] do begin code:= @op_MVI_B; inst:= 'MVI'; fmt:= 'MVI'+#9+'B,$%.2x'; group:= Egroup.data; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$07] do begin code:= @op_RLC; inst:= 'RLC'; fmt:= 'RLC'; group:= Egroup.logic; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-with OpCodes[$08] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$09] do begin code:= @op_DAD_B; inst:= 'DAD'; fmt:= 'DAD'+#9+'B'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [3]; state:= [10]; end;
 with OpCodes[$0A] do begin code:= @op_LDAX_B; inst:= 'LDAX'; fmt:= 'LDAX'+#9+'B'; group:= Egroup.data; mode:= Emode.ind_reg; len:= 1; cycle:= [2]; state:= [7]; end;
 with OpCodes[$0B] do begin code:= @op_DCX_B; inst:= 'DCX'; fmt:= 'DCX'+#9+'B'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
@@ -14,7 +13,6 @@ with OpCodes[$0C] do begin code:= @op_INR_C; inst:= 'INR'; fmt:= 'INR'+#9+'C'; g
 with OpCodes[$0D] do begin code:= @op_DCR_C; inst:= 'DCR'; fmt:= 'DCR'+#9+'C'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
 with OpCodes[$0E] do begin code:= @op_MVI_C; inst:= 'MVI'; fmt:= 'MVI'+#9+'C,$%.2x'; group:= Egroup.data; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$0F] do begin code:= @op_RRC; inst:= 'RRC'; fmt:= 'RRC'; group:= Egroup.logic; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-with OpCodes[$10] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$11] do begin code:= @op_LXI_D; inst:= 'LXI'; fmt:= 'LXI'+#9+'D,$%.4x'; group:= Egroup.data; mode:= Emode.imm; len:= 3; cycle:= [3]; state:= [10]; end;
 with OpCodes[$12] do begin code:= @op_STAX_D; inst:= 'STAX'; fmt:= 'STAX'+#9+'D'; group:= Egroup.data; mode:= Emode.ind_reg; len:= 1; cycle:= [2]; state:= [7]; end;
 with OpCodes[$13] do begin code:= @op_INX_D; inst:= 'INX'; fmt:= 'INX'+#9+'D'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
@@ -22,7 +20,6 @@ with OpCodes[$14] do begin code:= @op_INR_D; inst:= 'INR'; fmt:= 'INR'+#9+'D'; g
 with OpCodes[$15] do begin code:= @op_DCR_D; inst:= 'DCR'; fmt:= 'DCR'+#9+'D'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
 with OpCodes[$16] do begin code:= @op_MVI_D; inst:= 'MVI'; fmt:= 'MVI'+#9+'D,$%.2x'; group:= Egroup.data; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$17] do begin code:= @op_RAL; inst:= 'RAL'; fmt:= 'RAL'; group:= Egroup.logic; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-with OpCodes[$18] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$19] do begin code:= @op_DAD_D; inst:= 'DAD'; fmt:= 'DAD'+#9+'D'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [3]; state:= [10]; end;
 with OpCodes[$1A] do begin code:= @op_LDAX_D; inst:= 'LDAX'; fmt:= 'LDAX'+#9+'D'; group:= Egroup.data; mode:= Emode.ind_reg; len:= 1; cycle:= [2]; state:= [7]; end;
 with OpCodes[$1B] do begin code:= @op_DCX_D; inst:= 'DCX'; fmt:= 'DCX'+#9+'D'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
@@ -30,7 +27,6 @@ with OpCodes[$1C] do begin code:= @op_INR_E; inst:= 'INR'; fmt:= 'INR'+#9+'E'; g
 with OpCodes[$1D] do begin code:= @op_DCR_E; inst:= 'DCR'; fmt:= 'DCR'+#9+'E'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
 with OpCodes[$1E] do begin code:= @op_MVI_E; inst:= 'MVI'; fmt:= 'MVI'+#9+'E,$%.2x'; group:= Egroup.data; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$1F] do begin code:= @op_RAR; inst:= 'RAR'; fmt:= 'RAR'; group:= Egroup.logic; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-with OpCodes[$20] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$21] do begin code:= @op_LXI_H; inst:= 'LXI'; fmt:= 'LXI'+#9+'H,$%.4x'; group:= Egroup.data; mode:= Emode.imm; len:= 3; cycle:= [3]; state:= [10]; end;
 with OpCodes[$22] do begin code:= @op_SHLD; inst:= 'SHLD'; fmt:= 'SHLD'+#9+'$%.4x'; group:= Egroup.data; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [16]; end;
 with OpCodes[$23] do begin code:= @op_INX_H; inst:= 'INX'; fmt:= 'INX'+#9+'H'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
@@ -38,7 +34,6 @@ with OpCodes[$24] do begin code:= @op_INR_H; inst:= 'INR'; fmt:= 'INR'+#9+'H'; g
 with OpCodes[$25] do begin code:= @op_DCR_H; inst:= 'DCR'; fmt:= 'DCR'+#9+'H'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
 with OpCodes[$26] do begin code:= @op_MVI_H; inst:= 'MVI'; fmt:= 'MVI'+#9+'H,$%.2x'; group:= Egroup.data; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$27] do begin code:= @op_DAA; inst:= 'DAA'; fmt:= 'DAA'; group:= Egroup.logic; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-with OpCodes[$28] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$29] do begin code:= @op_DAD_H; inst:= 'DAD'; fmt:= 'DAD'+#9+'H'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [3]; state:= [10]; end;
 with OpCodes[$2A] do begin code:= @op_LHLD; inst:= 'LHLD'; fmt:= 'LHLD'+#9+'$%.4x'; group:= Egroup.data; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [16]; end;
 with OpCodes[$2B] do begin code:= @op_DCX_H; inst:= 'DCX'; fmt:= 'DCX'+#9+'H'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
@@ -46,7 +41,6 @@ with OpCodes[$2C] do begin code:= @op_INR_L; inst:= 'INR'; fmt:= 'INR'+#9+'L'; g
 with OpCodes[$2D] do begin code:= @op_DCR_L; inst:= 'DCR'; fmt:= 'DCR'+#9+'L'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
 with OpCodes[$2E] do begin code:= @op_MVI_L; inst:= 'MVI'; fmt:= 'MVI'+#9+'L,$%.2x'; group:= Egroup.data; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$2F] do begin code:= @op_CMA; inst:= 'CMA'; fmt:= 'CMA'; group:= Egroup.logic; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-with OpCodes[$30] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$31] do begin code:= @op_LXI_SP; inst:= 'LXI'; fmt:= 'LXI'+#9+'SP,$%.4x'; group:= Egroup.data; mode:= Emode.imm; len:= 3; cycle:= [3]; state:= [10]; end;
 with OpCodes[$32] do begin code:= @op_STA; inst:= 'STA'; fmt:= 'STA'+#9+'$%.4x'; group:= Egroup.data; mode:= Emode.abs; len:= 3; cycle:= [4]; state:= [13]; end;
 with OpCodes[$33] do begin code:= @op_INX_SP; inst:= 'INX'; fmt:= 'INX'+#9+'SP'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
@@ -54,7 +48,6 @@ with OpCodes[$34] do begin code:= @op_INR_M; inst:= 'INR'; fmt:= 'INR'+#9+'M'; g
 with OpCodes[$35] do begin code:= @op_DCR_M; inst:= 'DCR'; fmt:= 'DCR'+#9+'M'; group:= Egroup.arith; mode:= Emode.ind_reg; len:= 1; cycle:= [3]; state:= [10]; end;
 with OpCodes[$36] do begin code:= @op_MVI_Mi; inst:= 'MVI'; fmt:= 'MVI'+#9+'M,$%.2x'; group:= Egroup.data; mode:= Emode.ind_reg; len:= 2; cycle:= [3]; state:= [10]; end;
 with OpCodes[$37] do begin code:= @op_STC; inst:= 'STC'; fmt:= 'STC'; group:= Egroup.logic; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-with OpCodes[$38] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$39] do begin code:= @op_DAD_SP; inst:= 'DAD'; fmt:= 'DAD'+#9+'SP'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [3]; state:= [10]; end;
 with OpCodes[$3A] do begin code:= @op_LDA; inst:= 'LDA'; fmt:= 'LDA'+#9+'$%.4x'; group:= Egroup.data; mode:= Emode.abs; len:= 3; cycle:= [4]; state:= [13]; end;
 with OpCodes[$3B] do begin code:= @op_DCX_SP; inst:= 'DCX'; fmt:= 'DCX'+#9+'SP'; group:= Egroup.arith; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [5]; end;
@@ -201,7 +194,6 @@ with OpCodes[$C7] do begin code:= @op_RST_0; inst:= 'RST'; fmt:= 'RST'+#9+'0'; g
 with OpCodes[$C8] do begin code:= @op_RZ; inst:= 'RZ'; fmt:= 'RZ'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [1,3]; state:= [5,11]; end;
 with OpCodes[$C9] do begin code:= @op_RET; inst:= 'RET'; fmt:= 'RET'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [10]; end;
 with OpCodes[$CA] do begin code:= @op_JZ; inst:= 'JZ'; fmt:= 'JZ'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
-with OpCodes[$CB] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'+#9+'$%.4x'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
 with OpCodes[$CC] do begin code:= @op_CZ; inst:= 'CZ'; fmt:= 'CZ'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3,5]; state:= [11,17]; end;
 with OpCodes[$CD] do begin code:= @op_CALL; inst:= 'CALL'; fmt:= 'CALL'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
 with OpCodes[$CE] do begin code:= @op_ACI; inst:= 'ACI'; fmt:= 'ACI'+#9+'$%.2x'; group:= Egroup.arith; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
@@ -215,11 +207,9 @@ with OpCodes[$D5] do begin code:= @op_PUSH_D; inst:= 'PUSH'; fmt:= 'PUSH'+#9+'D'
 with OpCodes[$D6] do begin code:= @op_SUI; inst:= 'SUI'; fmt:= 'SUI'+#9+'$%.2x'; group:= Egroup.arith; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$D7] do begin code:= @op_RST_2; inst:= 'RST'; fmt:= 'RST'+#9+'2'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [11]; end;
 with OpCodes[$D8] do begin code:= @op_RC; inst:= 'RC'; fmt:= 'RC'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [1,3]; state:= [5,11]; end;
-with OpCodes[$D9] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [10]; end;
 with OpCodes[$DA] do begin code:= @op_JC; inst:= 'JC'; fmt:= 'JC'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
 with OpCodes[$DB] do begin code:= @op_IN; inst:= 'IN'; fmt:= 'IN'+#9+'$%.2x'; group:= Egroup.control; mode:= Emode.imm; len:= 2; cycle:= [3]; state:= [10]; end;
 with OpCodes[$DC] do begin code:= @op_CC; inst:= 'CC'; fmt:= 'CC'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3,5]; state:= [11,17]; end;
-with OpCodes[$DD] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'+#9+'$%.4x'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
 with OpCodes[$DE] do begin code:= @op_SBI; inst:= 'SBI'; fmt:= 'SBI'+#9+'$%.2x'; group:= Egroup.arith; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$DF] do begin code:= @op_RST_3; inst:= 'RST'; fmt:= 'RST'+#9+'3'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [11]; end;
 with OpCodes[$E0] do begin code:= @op_RPO; inst:= 'RPO'; fmt:= 'RPO'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [1,3]; state:= [5,11]; end;
@@ -235,7 +225,6 @@ with OpCodes[$E9] do begin code:= @op_PCHL; inst:= 'PCHL'; fmt:= 'PCHL'; group:=
 with OpCodes[$EA] do begin code:= @op_JPE; inst:= 'JPE'; fmt:= 'JPE'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
 with OpCodes[$EB] do begin code:= @op_XCHG; inst:= 'XCHG'; fmt:= 'XCHG'; group:= Egroup.data; mode:= Emode.reg; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$EC] do begin code:= @op_CPE; inst:= 'CPE'; fmt:= 'CPE'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3,5]; state:= [11,17]; end;
-with OpCodes[$ED] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'+#9+'$%.4x'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
 with OpCodes[$EE] do begin code:= @op_XRI; inst:= 'XRI'; fmt:= 'XRI'+#9+'$%.2x'; group:= Egroup.logic; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$EF] do begin code:= @op_RST_5; inst:= 'RST'; fmt:= 'RST'+#9+'5'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [11]; end;
 with OpCodes[$F0] do begin code:= @op_RP; inst:= 'RP'; fmt:= 'RP'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [1,3]; state:= [5,11]; end;
@@ -251,6 +240,35 @@ with OpCodes[$F9] do begin code:= @op_SPHL; inst:= 'SPHL'; fmt:= 'SPHL'; group:=
 with OpCodes[$FA] do begin code:= @op_JM; inst:= 'JM'; fmt:= 'JM'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
 with OpCodes[$FB] do begin code:= @op_EI; inst:= 'EI'; fmt:= 'EI'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
 with OpCodes[$FC] do begin code:= @op_CM; inst:= 'CM'; fmt:= 'CM'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3,5]; state:= [11,17]; end;
-with OpCodes[$FD] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'+#9+'$%.4x'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
 with OpCodes[$FE] do begin code:= @op_CPI; inst:= 'CPI'; fmt:= 'CPI'+#9+'$%.2x'; group:= Egroup.branch; mode:= Emode.imm; len:= 2; cycle:= [2]; state:= [7]; end;
 with OpCodes[$FF] do begin code:= @op_RST_7; inst:= 'RST'; fmt:= 'RST'+#9+'7'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [11]; end;
+
+if (allowIllegal) then begin
+  with OpCodes[$08] do begin code:= @op_NOP; inst:= 'NOP'; fmt:= 'NOP'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$10] do begin code:= @op_NOP; inst:= 'NOP'; fmt:= 'NOP'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$18] do begin code:= @op_NOP; inst:= 'NOP'; fmt:= 'NOP'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$20] do begin code:= @op_NOP; inst:= 'NOP'; fmt:= 'NOP'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$28] do begin code:= @op_NOP; inst:= 'NOP'; fmt:= 'NOP'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$30] do begin code:= @op_NOP; inst:= 'NOP'; fmt:= 'NOP'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$38] do begin code:= @op_NOP; inst:= 'NOP'; fmt:= 'NOP'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$CB] do begin code:= @op_JMP; inst:= 'JMP'; fmt:= 'JMP'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
+  with OpCodes[$D9] do begin code:= @op_RET; inst:= 'RET'; fmt:= 'RET'; group:= Egroup.branch; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [10]; end;
+  with OpCodes[$DD] do begin code:= @op_CALL; inst:= 'CALL'; fmt:= 'CALL'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+  with OpCodes[$ED] do begin code:= @op_CALL; inst:= 'CALL'; fmt:= 'CALL'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+  with OpCodes[$FD] do begin code:= @op_CALL; inst:= 'CALL'; fmt:= 'CALL'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+end
+else begin
+  with OpCodes[$08] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$10] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$18] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$20] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$28] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$30] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$38] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$CB] do begin code:= @op_IlgJmp; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
+  with OpCodes[$D9] do begin code:= @op_IlgRet; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [10]; end;
+  with OpCodes[$DD] do begin code:= @op_IlgCall; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+  with OpCodes[$ED] do begin code:= @op_IlgCall; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+  with OpCodes[$FD] do begin code:= @op_IlgCall; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+end;
+
