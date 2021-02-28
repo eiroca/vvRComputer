@@ -39,7 +39,7 @@ type
 type
   OpcodeCall = procedure() of object;
 
-  EGroup = (arith, branch, control, Data, illegal, logic, stack);
+  EGroup = (arith, branch, control, Data, logic, stack);
   EMode = (
     abs,
     abs_idx,
@@ -50,6 +50,7 @@ type
     dp_idx_ind,
     dp_ind,
     dp_ind_idx,
+    dp_rel,
     imm,
     imp,
     ind_reg,
@@ -107,7 +108,7 @@ type
 
   PCPUStatus = ^RCPUStatus;
   RCPUStatus = record
-    instr: RInstuction;
+    instr: PInstruction;
     regs: array of iSize32;
     extras: array of iSize32;
     flags: TFlags;
@@ -153,12 +154,14 @@ type
 
 type
 
+  ECPUState = (active, stop, wait);
+
   { TCPU }
 
   HaltCall = procedure() of object;
   TraceCall = procedure(const trace: RCPUStatus) of object;
 
-  generic TCPU<AddrType, RegType> = class
+  generic TCPU<RegType, AddrType> = class
   private
     // Emulator hooks
     FHaltEvent: HaltCall;
@@ -170,7 +173,7 @@ type
     opers: int64;
     cycles: int64;
   protected
-    FHalted: boolean;
+    FState: ECPUState;
     FIRQAllowed: boolean;
     FInfo: RCPUInfo;
     FStatus: RCPUStatus;
@@ -184,6 +187,7 @@ type
   protected
     function CheckIRQs(): boolean; virtual;
     procedure DoIRQ(int: integer); virtual;
+    procedure DoFirstIRQ();
   protected // Abstract
     procedure UpdateCPUInfo; virtual; abstract;
     procedure UpdateCPUStatus(fillExtra: boolean = True); virtual; abstract;
@@ -198,7 +202,7 @@ type
     property OnHalt: HaltCall read FHaltEvent write FHaltEvent;
     property OnTrace: TraceCall read FTraceEvent write FTraceEvent;
   public // properties
-    property Halted: boolean read FHalted write FHalted;
+    property State: ECPUState read FState write FState;
     property IRQAllowed: boolean read FIRQAllowed write FIRQAllowed;
     property Info: RCPUInfo read FInfo;
     property Status: RCPUStatus read GetCPUStatus;
@@ -220,7 +224,7 @@ type
   Read8Memory16Call = function(const address: iSize16): iSize8 of object;
   Write8Memory16Call = procedure(const address: iSize16; const val: iSize8) of object;
 
-  TCPU_ClassA = class(specialize TCPU<iSize16, iSize8>)
+  TCPU_ClassA = class(specialize TCPU<iSize8, iSize16>)
     // 8 bits data bus
     // 16 bits address bus
   private
@@ -230,27 +234,9 @@ type
   protected
     function imm8(): iSize8; inline;
     function imm16(): iSize16; inline;
+    procedure imm_PC(); inline;
     function rel8(): iSize8; inline;
     function rel16(): iSize16; inline;
-    procedure PC_abs(); inline;
-    function addr_abs(): iSize16; inline;
-    function data_abs(): iSize8; inline;
-    function addr_abs_ind(): iSize16; inline;
-    function data_abs_ind(): iSize16; inline;
-    function addr_abs_idx(const idx: iSize8): iSize16; inline;
-    function data_abs_idx(const idx: iSize8): iSize8; inline;
-    function addr_abs_idx_ind(const idx: iSize8): iSize16; inline;
-    function data_abs_idx_ind(const idx: iSize8): iSize16; inline;
-    function addr_dp(): iSize16; inline;
-    function data_dp(): iSize8; inline;
-    function addr_dp_ind(): iSize16; inline;
-    function data_dp_ind(): iSize8; inline;
-    function addr_dp_ind_idx(const idx: iSize8): iSize16; inline;
-    function data_dp_ind_idx(const idx: iSize8): iSize8; inline;
-    function addr_dp_idx(const idx: iSize8): iSize16; inline;
-    function data_dp_idx(const idx: iSize8): iSize8; inline;
-    function addr_dp_idx_ind(const idx: iSize8): iSize16; inline;
-    function data_dp_idx_ind(const idx: iSize8): iSize8; inline;
   protected
     OpCodes: array of ROpcode;
   public
@@ -495,7 +481,7 @@ end;
 
 procedure TCPU.Reset();
 begin
-  FHalted := True;
+  State := active;
 end;
 
 function TCPU.CheckIRQs(): boolean;
@@ -511,7 +497,6 @@ begin
           NMI := IRQsNMI[i];
           if (NMI) or ((masked = False) and FIRQAllowed) then begin
             Result := True;
-            DoIRQ(i);
           end;
         end;
       end;
@@ -521,8 +506,24 @@ end;
 
 procedure TCPU.DoIRQ(int: integer);
 begin
-  FIRQAllowed := False;
+  if (state = wait) then state := active;
   FIRQs[int].active := False;
+end;
+
+procedure TCPU.DoFirstIRQ();
+var
+  i: integer;
+begin
+  with FInfo do begin
+    for i := 0 to numIRQs - 1 do begin
+      with FIRQs[i] do begin
+        if FIRQs[i].active then begin
+          DoIRQ(i);
+          exit;
+        end;
+      end;
+    end;
+  end;
 end;
 
 function TCPU.ReadReg(const Name: string): RegType;
@@ -544,21 +545,27 @@ begin
   inst.addr := 0;
   PC := addr;
   if not Assigned(FTraceEvent) then aTrace := False;
-  while (not FHalted) and ((steps < 0) or (Result < steps)) do begin
+  while (state <> stop) and ((steps < 0) or (Result < steps)) do begin
     Result := (Result + 1) and $8FFFFFFF;
+    opcode := nil;
     if (aTrace) then begin
       UpdateCPUStatus();
       DecodeInst(PC, inst, False);
     end;
-    if CheckIRQs() = False then begin
+    if CheckIRQs() = True then begin
+      DoFirstIRQ();
+    end;
+    if state = active then begin
       // No IRQs execute a opcode
       opcode := Step;
-    end
-    else begin
-      opcode := nil;
     end;
-    if (aTrace) and (opcode <> nil) then begin
-      FStatus.instr := inst;
+    if (aTrace) then begin
+      if (opcode <> nil) then begin
+        FStatus.instr := @inst;
+      end
+      else begin
+        FStatus.instr := nil;
+        end;
       OnTrace(FStatus);
     end;
   end;
@@ -653,6 +660,16 @@ begin
   Result := b1 + b2 shl 8;
 end;
 
+procedure TCPU_ClassA.imm_PC();
+var
+  b1, b2: iSize8;
+begin
+  b1 := ReadMem(PC);
+  PC := (PC + 1) and $FFFF;
+  b2 := ReadMem(PC);
+  PC := b1 + b2 shl 8;
+end;
+
 function TCPU_ClassA.rel8(): iSize8;
 var
   b1: iSize8;
@@ -671,187 +688,6 @@ begin
   b2 := ReadMem(PC);
   PC := (PC + 1) and $FFFF;
   Result := int16(b1 + b2 shl 8);
-end;
-
-procedure TCPU_ClassA.PC_abs();
-var
-  b1, b2: iSize8;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := b1 + b2 shl 8;
-end;
-
-function TCPU_ClassA.addr_abs(): iSize16;
-var
-  b1, b2: iSize8;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  Result := b1 + b2 shl 8;
-end;
-
-function TCPU_ClassA.data_abs(): iSize8;
-var
-  addr: iSize16;
-begin
-  addr := addr_abs();
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_abs_ind(): iSize16;
-var
-  b1, b2: iSize8;
-  addr: iSize16;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  addr := b1 + b2 shl 8;
-  Result := ReadMem(addr) + 256 * ReadMem((addr + 1) and $FFFF);
-end;
-
-function TCPU_ClassA.data_abs_ind(): iSize16;
-var
-  addr: iSize16;
-begin
-  addr := addr_abs_ind();
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_abs_idx(const idx: iSize8): iSize16;
-var
-  b1, b2: iSize8;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  Result := (b1 + b2 shl 8 + idx) and $FFFF;
-end;
-
-function TCPU_ClassA.data_abs_idx(const idx: iSize8): iSize8;
-var
-  addr: iSize16;
-begin
-  addr := addr_abs_idx(idx);
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_abs_idx_ind(const idx: iSize8): iSize16;
-var
-  b1, b2: iSize8;
-  addr: iSize16;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  b2 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  addr := (b1 + b2 shl 8 + idx) and $FFFF;
-  Result := ReadMem(addr) + 256 * ReadMem((addr + 1) and $FFFF);
-end;
-
-function TCPU_ClassA.data_abs_idx_ind(const idx: iSize8): iSize16;
-var
-  addr: iSize16;
-begin
-  addr := addr_abs_idx_ind(idx);
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_dp(): iSize16;
-var
-  b1: iSize8;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  Result := b1;
-end;
-
-function TCPU_ClassA.data_dp(): iSize8;
-var
-  addr: iSize16;
-begin
-  addr := addr_dp();
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_dp_ind(): iSize16;
-var
-  b1: iSize8;
-  MA: iSize16;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  MA := b1;
-  Result := ReadMem(MA) + ReadMem(MA + 1) shl 8;
-end;
-
-function TCPU_ClassA.data_dp_ind(): iSize8;
-var
-  addr: iSize16;
-begin
-  addr := addr_dp_ind();
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_dp_ind_idx(const idx: iSize8): iSize16;
-var
-  b1: iSize8;
-  MA: iSize16;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  MA := b1;
-  Result := (ReadMem(MA) + ReadMem(MA + 1) shl 8 + idx) and $FFFF;
-end;
-
-function TCPU_ClassA.data_dp_ind_idx(const idx: iSize8): iSize8;
-var
-  addr: iSize16;
-begin
-  addr := addr_dp_ind_idx(idx);
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_dp_idx(const idx: iSize8): iSize16;
-var
-  b1: iSize8;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  Result := b1 + idx;
-end;
-
-function TCPU_ClassA.data_dp_idx(const idx: iSize8): iSize8;
-var
-  addr: iSize16;
-begin
-  addr := addr_dp_idx(idx);
-  Result := ReadMem(addr);
-end;
-
-function TCPU_ClassA.addr_dp_idx_ind(const idx: iSize8): iSize16;
-var
-  b1: iSize8;
-  MA: iSize16;
-begin
-  b1 := ReadMem(PC);
-  PC := (PC + 1) and $FFFF;
-  MA := b1 + idx;
-  Result := ReadMem(MA) + ReadMem(MA + 1) shl 8;
-end;
-
-function TCPU_ClassA.data_dp_idx_ind(const idx: iSize8): iSize8;
-var
-  addr: iSize16;
-begin
-  addr := addr_dp_idx_ind(idx);
-  Result := ReadMem(addr);
 end;
 
 initialization

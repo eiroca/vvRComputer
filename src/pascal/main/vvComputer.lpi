@@ -31,7 +31,7 @@
         <PackageName Value="LCL"/>
       </Item1>
     </RequiredPackages>
-    <Units Count="11">
+    <Units Count="12">
       <Unit0>
         <Filename Value="vvComputer.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -44,45 +44,45 @@
         <ResourceBaseClass Value="Form"/>
       </Unit1>
       <Unit2>
-        <Filename Value="lib\uCpu.pas"/>
+        <Filename Value="lib\CPU_const.inc"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="uCPU"/>
       </Unit2>
       <Unit3>
-        <Filename Value="lib\uCpu_8080.pas"/>
+        <Filename Value="lib\CPUTable_8080.inc"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="uCPU_8080"/>
       </Unit3>
       <Unit4>
-        <Filename Value="lib\uCpu_8085.pas"/>
+        <Filename Value="lib\CPUTable_8085.inc"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="uCPU_8085"/>
       </Unit4>
       <Unit5>
-        <Filename Value="lib\uDevice.pas"/>
+        <Filename Value="lib\CPUTable_65C02R.inc"/>
         <IsPartOfProject Value="True"/>
       </Unit5>
       <Unit6>
-        <Filename Value="lib\CPU_const.inc"/>
+        <Filename Value="lib\CPUTable_65C02W.inc"/>
         <IsPartOfProject Value="True"/>
       </Unit6>
       <Unit7>
-        <Filename Value="lib\CPUTable_8080.inc"/>
+        <Filename Value="lib\CPUTable_6502B.inc"/>
         <IsPartOfProject Value="True"/>
       </Unit7>
       <Unit8>
-        <Filename Value="lib\CPUTable_8085.inc"/>
+        <Filename Value="lib\CPUTable_6502U.inc"/>
         <IsPartOfProject Value="True"/>
       </Unit8>
       <Unit9>
-        <Filename Value="lib\CPUTable_6502.inc"/>
+        <Filename Value="lib\uCPU.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit9>
       <Unit10>
-        <Filename Value="lib\uCpu_6502.pas"/>
+        <Filename Value="lib\uCPU_808x.pas"/>
         <IsPartOfProject Value="True"/>
-        <UnitName Value="uCPU_6502"/>
       </Unit10>
+      <Unit11>
+        <Filename Value="lib\uCPU_6502.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit11>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

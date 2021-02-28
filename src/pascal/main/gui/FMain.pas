@@ -174,13 +174,13 @@ end;
 
 procedure TfmMain.bCPU_HaltClick(Sender: TObject);
 begin
-  CPU.cpu.Halted := True;
+  CPU.cpu.state := ECPUState.stop;
   UpdateCPU_GUI();
 end;
 
 procedure TfmMain.bCPU_ResumeClick(Sender: TObject);
 begin
-  CPU.cpu.Halted := False;
+  CPU.cpu.state := ECPUState.Active;
   UpdateCPU_GUI();
 end;
 
@@ -200,7 +200,7 @@ procedure TfmMain.UpdateCPU_GUI();
 var
   halted: boolean;
 begin
-  halted := CPU.cpu.Halted;
+  halted := CPU.cpu.state = ECPUState.stop;
   bCPU_Halt.Enabled := not halted;
   bCPU_Resume.Enabled := halted;
   bCPU_HardReset.Enabled := halted;

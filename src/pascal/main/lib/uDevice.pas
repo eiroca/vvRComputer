@@ -22,7 +22,7 @@ uses
   {$ifdef unix}
   cthreads,
   {$endif}
-  uCPU, uCPU_8080, uCPU_8085, uCPU_6502,
+  uCPU, uCPU_808x, uCPU_6502,
   AvgLvlTree, typinfo,
   LMessages, LCLIntf, LCLType, LCLProc,
   Classes, SysUtils;
@@ -799,10 +799,15 @@ begin
   s := '';
   with cpu.Info do begin
     PC := trace.regs[PCreg];
-    with  trace.instr.def^ do begin
-      s := Format(StringReplace(fmt, TAB, ' ', [rfReplaceAll]), [trace.instr.operand]);
-      s := Copy(s + '                 ', 1, 15);
-      s := IntToHex(PC, 4) + ': ' + s;
+    if (trace.instr <> nil) then begin
+      with  trace.instr^.def^ do begin
+        s := Format(StringReplace(fmt, TAB, ' ', [rfReplaceAll]), [trace.instr^.operand]);
+        s := Copy(s + '                 ', 1, 15);
+        s := IntToHex(PC, 4) + ': ' + s;
+      end;
+    end
+    else begin
+      s := IntToHex(PC, 4) + ': interrupt      ';
     end;
     for i := 0 to numRegs - 1 do begin
       if (i <> PCreg) then begin

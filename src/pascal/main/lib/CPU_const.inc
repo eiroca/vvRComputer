@@ -80,6 +80,8 @@ const
     );
 
   bool_bit: array[boolean] of iSize8 = (0, 1);
+  bool_bit8: array[boolean] of iSize8 = (0, $80);
+  negbool_bit: array[boolean] of iSize8 = (1, 0);
 
   endian_offset: array[boolean, 0..1] of iSize8 = ((1, 0), (0, 1));
 

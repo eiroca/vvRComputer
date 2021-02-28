@@ -258,17 +258,17 @@ if (allowIllegal) then begin
   with OpCodes[$FD] do begin code:= @op_JK; inst:= 'JK'; fmt:= 'JK'+#9+'$%.4x'; group:= Egroup.branch; mode:= Emode.abs; len:= 3; cycle:= [2,3]; state:= [7,10]; end;
 end
 else begin
-  with OpCodes[$08] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-  with OpCodes[$10] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-  with OpCodes[$18] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-  with OpCodes[$20] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-  with OpCodes[$28] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-  with OpCodes[$30] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-  with OpCodes[$38] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
-  with OpCodes[$CB] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
-  with OpCodes[$D9] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.illegal; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [10]; end;
-  with OpCodes[$DD] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
-  with OpCodes[$ED] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
-  with OpCodes[$FD] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.illegal; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+  with OpCodes[$08] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$10] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$18] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$20] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$28] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$30] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$38] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [1]; state:= [4]; end;
+  with OpCodes[$CB] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.control; mode:= Emode.abs; len:= 3; cycle:= [3]; state:= [10]; end;
+  with OpCodes[$D9] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(1)'; group:= Egroup.control; mode:= Emode.imp; len:= 1; cycle:= [3]; state:= [10]; end;
+  with OpCodes[$DD] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.control; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+  with OpCodes[$ED] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.control; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
+  with OpCodes[$FD] do begin code:= @op_NotSup; inst:= 'NOT_SUP'; fmt:= 'NOT_SUP(3)'; group:= Egroup.control; mode:= Emode.abs; len:= 3; cycle:= [5]; state:= [17]; end;
 end;
 
