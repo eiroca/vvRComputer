@@ -5,7 +5,8 @@ program vvComputer;
 uses // -
  {$IFDEF UNIX} {$IFDEF UseCThreads} cthreads, {$ENDIF} {$ENDIF}
   Interfaces, Forms, // -
-  FMain, uCPU, ucpu_808x, uCPU_6502;
+  uCPU, ucpu_808x, uCPU_6502, uDevice, // -
+  FMain, FTerminal;
 
 {$R *.res}
 

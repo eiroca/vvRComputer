@@ -15,8 +15,79 @@
       </XPManifest>
       <Icon Value="0"/>
     </General>
-    <BuildModes Count="1">
+    <BuildModes Count="3">
       <Item1 Name="Default" Default="True"/>
+      <Item2 Name="Debug">
+        <CompilerOptions>
+          <Version Value="11"/>
+          <PathDelim Value="\"/>
+          <Target>
+            <Filename Value="$Env(BUILD_PATH)vvComputer\vvComputer"/>
+          </Target>
+          <SearchPaths>
+            <IncludeFiles Value="$(ProjOutDir);lib"/>
+            <OtherUnitFiles Value="gui;lib;toolkit"/>
+            <UnitOutputDirectory Value="$Env(BUILD_PATH)vvComputer\lib\$(TargetCPU)-$(TargetOS)"/>
+          </SearchPaths>
+          <Parsing>
+            <SyntaxOptions>
+              <IncludeAssertionCode Value="True"/>
+            </SyntaxOptions>
+          </Parsing>
+          <CodeGeneration>
+            <Checks>
+              <IOChecks Value="True"/>
+              <RangeChecks Value="True"/>
+              <OverflowChecks Value="True"/>
+              <StackChecks Value="True"/>
+            </Checks>
+            <VerifyObjMethodCallValidity Value="True"/>
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <DebugInfoType Value="dsDwarf2Set"/>
+              <TrashVariables Value="True"/>
+              <UseExternalDbgSyms Value="True"/>
+            </Debugging>
+            <Options>
+              <Win32>
+                <GraphicApplication Value="True"/>
+              </Win32>
+            </Options>
+          </Linking>
+        </CompilerOptions>
+      </Item2>
+      <Item3 Name="Release">
+        <CompilerOptions>
+          <Version Value="11"/>
+          <PathDelim Value="\"/>
+          <Target>
+            <Filename Value="$Env(BUILD_PATH)vvComputer\vvComputer"/>
+          </Target>
+          <SearchPaths>
+            <IncludeFiles Value="$(ProjOutDir);lib"/>
+            <OtherUnitFiles Value="gui;lib;toolkit"/>
+            <UnitOutputDirectory Value="$Env(BUILD_PATH)vvComputer\lib\$(TargetCPU)-$(TargetOS)"/>
+          </SearchPaths>
+          <CodeGeneration>
+            <SmartLinkUnit Value="True"/>
+            <Optimizations>
+              <OptimizationLevel Value="3"/>
+            </Optimizations>
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <GenerateDebugInfo Value="False"/>
+            </Debugging>
+            <LinkSmart Value="True"/>
+            <Options>
+              <Win32>
+                <GraphicApplication Value="True"/>
+              </Win32>
+            </Options>
+          </Linking>
+        </CompilerOptions>
+      </Item3>
     </BuildModes>
     <PublishOptions>
       <Version Value="2"/>
@@ -31,7 +102,7 @@
         <PackageName Value="LCL"/>
       </Item1>
     </RequiredPackages>
-    <Units Count="12">
+    <Units Count="16">
       <Unit0>
         <Filename Value="vvComputer.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -64,25 +135,44 @@
         <IsPartOfProject Value="True"/>
       </Unit6>
       <Unit7>
-        <Filename Value="lib\CPUTable_6502B.inc"/>
+        <Filename Value="lib\CPUTable_6502U.inc"/>
         <IsPartOfProject Value="True"/>
       </Unit7>
       <Unit8>
-        <Filename Value="lib\CPUTable_6502U.inc"/>
+        <Filename Value="lib\uCPU.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit8>
       <Unit9>
-        <Filename Value="lib\uCPU.pas"/>
+        <Filename Value="lib\uCPU_808x.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit9>
       <Unit10>
-        <Filename Value="lib\uCPU_808x.pas"/>
+        <Filename Value="lib\uCPU_6502.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit10>
       <Unit11>
-        <Filename Value="lib\uCPU_6502.pas"/>
+        <Filename Value="lib\uDevice.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit11>
+      <Unit12>
+        <Filename Value="lib\CPUTable_6502.inc"/>
+        <IsPartOfProject Value="True"/>
+      </Unit12>
+      <Unit13>
+        <Filename Value="lib\CPUTable_65C02.inc"/>
+        <IsPartOfProject Value="True"/>
+      </Unit13>
+      <Unit14>
+        <Filename Value="toolkit\uEmuCPM.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit14>
+      <Unit15>
+        <Filename Value="toolkit\FTerminal.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="fmTerminal"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
+      </Unit15>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
@@ -93,7 +183,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir);lib"/>
-      <OtherUnitFiles Value="gui;lib"/>
+      <OtherUnitFiles Value="gui;lib;toolkit"/>
       <UnitOutputDirectory Value="$Env(BUILD_PATH)vvComputer\lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Parsing>

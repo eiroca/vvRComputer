@@ -149,5 +149,3 @@
 (* *) with OpCodes[$FD] do begin code:= @op_SBC_abs_idX; inst:= 'SBC'; fmt:= 'SBC'+#9+'$%.4x,X'; group:= Egroup.arith; mode:= Emode.abs_idx; len:= 3; cycle:= 4; end;
 (* *) with OpCodes[$FE] do begin code:= @op_INC_abs_idX; inst:= 'INC'; fmt:= 'INC'+#9+'$%.4x,X'; group:= Egroup.arith; mode:= Emode.abs_idx; len:= 3; cycle:= 7; end;
 
-(*U*) with OpCodes[$82] do begin code:= @op_NOP_imm; inst:= 'NOP'; fmt:= 'NOP'+#9+'#%.2x'; group:= Egroup.control; mode:= Emode.imp; len:= 2; cycle:= 2; end;
-

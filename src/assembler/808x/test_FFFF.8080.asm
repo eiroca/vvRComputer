@@ -19,33 +19,30 @@
 	.target	"8080"
 	.format	"bin"
 
-.macro SwapNibble()	; Swap the nibble in A  $1F -> $F1
-	rlc		
-	rlc
-	rlc
-	rlc
-.endmacro	
+.include "./lib/libUtils.8080.asm"
+.include "./lib/libToolKit.8080.asm"
 
 .macro ToolKitEntry(ID, DstBank=$F, BlockSize=1, SrcBlock, VT_Address)
 	.byte	ID
 	.byte	DstBank * 16 + BlockSize
 	.word	SrcBlock
 	.word	VT_Address
-.endmacro	
+.endmacro
 
 .macro CallToolKit(TK_ID, TK_call)
 	rst	7
 	.byte	TK_ID
 	.byte	TK_call
-.endmacro	
+.endmacro
 
+.segment "Fake"
 ;make sure 4k bank
 	.org	$0FFF
 	hlt
 
+.code
 RST_0	.org	$0000
 	nop		; work-around for RetroAssembler bug
-	lxi	SP, Stack
 	jmp	Boot
 
 RST_1	.org	$0008
@@ -62,21 +59,22 @@ RST_4	.org	$0020
 
 RST_5	.org	$0028
 	hlt
-	
+
 RST_6	.org	$0030
 	hlt
-	
+
 ; Toolkit call
 ; RST 7
-; 
-RST_7	.org	$0038	
+;
+RST_7	.org	$0038
 	jmp	RToolKit
-	
+
 RST_V	.org	$0040
 	hlt
-	
+
 Boot	.org	$0200
-	jmp 	TestCode
+	lxi	SP, Stack
+	jmp	TestCode
 
 TestCode	.org	$0400
 	lda	bcd	;load the bcd number
@@ -85,42 +83,24 @@ TestCode	.org	$0400
 	CallToolKit(1, 1)
 	hlt
 
-; Input  A in BCD format
-; Output A in binary format
-; destroys BC
-; no checks if BCD is valid
-bcd2bin	mov	b, a
-	ani	$F0	; tens bcd part
-	jz	less10
-	SwapNibble()	; convert to tens and keep it in "c"
-	mov	c, a
-	mov	a, b
-	ani	$0F	; units
-	mvi	b, 10	; do tens x 10 
-@loop	add	b
-	dcr	c
-	jnz	@loop
-	ret
-less10	mov	a, b
-	ret
-
-; Data	
+; Data
 bcd	.byte	$99
 bin	.byte	$00
 
-; Toolkits	
-	.org	$0500	
+; Toolkits
+	.org	$0500
 ; Call a ToolKit
 ;
 ; call RToolKit
 ; .byte toolkit
 ; .byte function
 RToolKit	pop	H
-	mov	B, H
+	mov	B, M
 	inx	H
-	mov 	C, H
+	mov	C, H
 	inx	H
 	push	H
+	ret
 ; Call a ToolKit
 ; Input B -> Toolkit Number
 ; Input C -> Toolkit Function
@@ -129,7 +109,7 @@ DoToolKit	hlt
 TK_List	.byte	1	; How many toolkits
 	ToolKitEntry(1, 0, 1, 0, TK_01)
 
-TK_01	.byte 	1	; Number of entrypoints
+TK_01	.byte	1	; Number of entrypoints
 	.word	bcd2bin	; Toolkit tool 1
 
 Stack	.equ	$1000

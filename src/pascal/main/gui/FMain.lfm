@@ -1,40 +1,40 @@
 object fmMain: TfmMain
-  Left = 433
-  Height = 706
-  Top = 173
-  Width = 936
+  Left = 397
+  Height = 546
+  Top = 273
+  Width = 1067
   Caption = 'Virtual Vintage Computer'
-  ClientHeight = 706
-  ClientWidth = 936
+  ClientHeight = 546
+  ClientWidth = 1067
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   LCLVersion = '2.0.10.0'
   object StatusBar1: TStatusBar
     Left = 0
     Height = 23
-    Top = 683
-    Width = 936
+    Top = 523
+    Width = 1067
     Panels = <>
   end
   object pcComputer: TPageControl
     Left = 0
-    Height = 683
+    Height = 523
     Top = 0
-    Width = 936
-    ActivePage = TabSheet2
+    Width = 1067
+    ActivePage = TabSheet4
     Align = alClient
-    TabIndex = 3
+    TabIndex = 1
     TabOrder = 1
     OnEnter = pcComputerEnter
     object TabSheet1: TTabSheet
       Caption = 'Logs'
-      ClientHeight = 655
-      ClientWidth = 928
+      ClientHeight = 495
+      ClientWidth = 1059
       object mOutput: TMemo
         Left = 0
-        Height = 655
+        Height = 495
         Top = 0
-        Width = 928
+        Width = 1059
         Align = alClient
         Lines.Strings = (
           'mOutput'
@@ -46,13 +46,13 @@ object fmMain: TfmMain
     end
     object TabSheet4: TTabSheet
       Caption = 'Tools'
-      ClientHeight = 655
-      ClientWidth = 928
+      ClientHeight = 495
+      ClientWidth = 1059
       object mTools: TMemo
         Left = 0
-        Height = 613
-        Top = 42
-        Width = 928
+        Height = 423
+        Top = 72
+        Width = 1059
         Align = alClient
         Font.CharSet = ANSI_CHARSET
         Font.Color = clBlack
@@ -67,12 +67,12 @@ object fmMain: TfmMain
       end
       object Panel2: TPanel
         Left = 0
-        Height = 42
+        Height = 72
         Top = 0
-        Width = 928
+        Width = 1059
         Align = alTop
-        ClientHeight = 42
-        ClientWidth = 928
+        ClientHeight = 72
+        ClientWidth = 1059
         TabOrder = 1
         object Label2: TLabel
           Left = 8
@@ -95,9 +95,9 @@ object fmMain: TfmMain
           SpaceChar = '_'
         end
         object iAdrEnd: TMaskEdit
-          Left = 408
+          Left = 528
           Height = 23
-          Top = 10
+          Top = 42
           Width = 56
           CharCase = ecNormal
           MaxLength = 4
@@ -107,9 +107,9 @@ object fmMain: TfmMain
           SpaceChar = '_'
         end
         object iDisAss: TButton
-          Left = 296
+          Left = 416
           Height = 25
-          Top = 9
+          Top = 40
           Width = 104
           Caption = 'Disassemble to:'
           OnClick = iDisAssClick
@@ -125,26 +125,26 @@ object fmMain: TfmMain
           TabOrder = 3
         end
         object cbTrace: TCheckBox
-          Left = 240
+          Left = 352
           Height = 19
-          Top = 12
+          Top = 10
           Width = 48
           Caption = 'Trace'
           TabOrder = 4
         end
         object iDump: TButton
-          Left = 592
+          Left = 8
           Height = 25
-          Top = 9
+          Top = 38
           Width = 75
           Caption = 'Dump Block'
           OnClick = iDumpClick
           TabOrder = 5
         end
         object iBlockID: TMaskEdit
-          Left = 552
+          Left = 96
           Height = 23
-          Top = 10
+          Top = 40
           Width = 32
           CharCase = ecNormal
           MaxLength = 4
@@ -153,25 +153,58 @@ object fmMain: TfmMain
           Text = '   0'
           SpaceChar = '_'
         end
-        object Label1: TLabel
-          Left = 480
+        object iRun: TButton
+          Left = 160
+          Height = 25
+          Top = 40
+          Width = 128
+          Caption = 'Run (PRG, COM) ->'
+          OnClick = iRunClick
+          TabOrder = 7
+        end
+        object iProgName: TEdit
+          Left = 296
+          Height = 23
+          Top = 42
+          Width = 112
+          TabOrder = 8
+          Text = 'hello.prg'
+        end
+        object iSteps: TEdit
+          Left = 296
+          Height = 23
+          Top = 10
+          Width = 40
+          TabOrder = 9
+          Text = '-1'
+        end
+        object Label4: TLabel
+          Left = 248
           Height = 15
           Top = 14
-          Width = 65
-          Caption = 'Block (HEX):'
+          Width = 31
+          Caption = 'Steps:'
           ParentColor = False
+        end
+        object cbLog: TCheckBox
+          Left = 416
+          Height = 19
+          Top = 8
+          Width = 52
+          Caption = 'To file'
+          TabOrder = 10
         end
       end
     end
     object TabSheet3: TTabSheet
       Caption = 'Device'
-      ClientHeight = 655
-      ClientWidth = 928
+      ClientHeight = 495
+      ClientWidth = 1059
       object dgDevices: TDrawGrid
         Left = 0
-        Height = 655
+        Height = 495
         Top = 0
-        Width = 928
+        Width = 1059
         Align = alClient
         ColCount = 7
         Columns = <        
@@ -256,17 +289,17 @@ object fmMain: TfmMain
     end
     object TabSheet2: TTabSheet
       Caption = 'CPU'
-      ClientHeight = 655
-      ClientWidth = 928
+      ClientHeight = 495
+      ClientWidth = 1059
       object Panel1: TPanel
-        Left = 832
-        Height = 655
+        Left = 963
+        Height = 495
         Top = 0
         Width = 96
         Align = alRight
         BorderStyle = bsSingle
         Caption = 'CPU'
-        ClientHeight = 651
+        ClientHeight = 491
         ClientWidth = 92
         TabOrder = 0
         object bCPU_Status: TButton
@@ -317,9 +350,9 @@ object fmMain: TfmMain
       end
       object mCPU: TMemo
         Left = 0
-        Height = 655
+        Height = 495
         Top = 0
-        Width = 832
+        Width = 963
         Align = alClient
         Font.CharSet = ANSI_CHARSET
         Font.Color = clBlack
@@ -333,5 +366,13 @@ object fmMain: TfmMain
         WordWrap = False
       end
     end
+  end
+  object Label3: TLabel
+    Left = 8
+    Height = 15
+    Top = 14
+    Width = 78
+    Caption = 'Address (HEX):'
+    ParentColor = False
   end
 end

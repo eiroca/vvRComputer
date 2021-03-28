@@ -1,0 +1,22 @@
+object fmTerminal: TfmTerminal
+  Left = 1034
+  Height = 326
+  Top = 118
+  Width = 524
+  Caption = 'Terminal'
+  Font.CharSet = ANSI_CHARSET
+  Font.Color = clBlack
+  Font.Height = -11
+  Font.Name = 'Courier New'
+  Font.Pitch = fpFixed
+  Font.Quality = fqDraft
+  OnCloseQuery = FormCloseQuery
+  OnCreate = FormCreate
+  LCLVersion = '2.0.10.0'
+  object tAutoRefresh: TTimer
+    Interval = 200
+    OnTimer = tAutoRefreshTimer
+    Left = 74
+    Top = 47
+  end
+end

@@ -60,15 +60,7 @@ const
     4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8
     );
 
-  parity_of_bits: array[0..255] of boolean = (
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
-    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
+  parity_bit: array[0..255] of boolean = (
     True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
     False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
     False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
@@ -76,7 +68,15 @@ const
     False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
     True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
     True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
-    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False
+    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
+    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
+    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
+    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
+    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
+    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True,
+    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
+    False, True, True, False, True, False, False, True, True, False, False, True, False, True, True, False,
+    True, False, False, True, False, True, True, False, False, True, True, False, True, False, False, True
     );
 
   bool_bit: array[boolean] of iSize8 = (0, 1);

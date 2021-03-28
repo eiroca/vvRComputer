@@ -19,6 +19,7 @@ unit uCPU;
 interface
 
 uses
+  Forms,
   AvgLvlTree,
   Classes, SysUtils;
 
@@ -87,8 +88,7 @@ type
     group: EGroup;
     mode: EMode;
     len: integer;
-    cycle: array of integer;
-    state: array of integer;
+    cycle: integer;
   end;
 
   PIRQ = ^RIRQ;
@@ -161,17 +161,29 @@ type
   HaltCall = procedure() of object;
   TraceCall = procedure(const trace: RCPUStatus) of object;
 
-  generic TCPU<RegType, AddrType> = class
+  BreakPointHook = function(): boolean of object;
+
+  { TBreakPoint }
+
+  TBreakPoint = class
+    addr: uint32;
+    call: BreakPointHook;
+    constructor Create(aAddr: uint32; aCall: BreakPointHook);
+  end;
+
+  generic TCPU<RegType, AddrType> = class(IFPObserver)
+  private
+    procedure FPOObservedChanged(ASender: TObject; Operation: TFPObservedOperation; Data: Pointer);
   private
     // Emulator hooks
     FHaltEvent: HaltCall;
     FTraceEvent: TraceCall;
-    function ReadReg(Name: integer): RegType;
-    function ReadRegW(Name: integer): AddrType;
+    FBreakPoints: TList;
   protected
-    // Emulator status
-    opers: int64;
-    cycles: int64;
+    // Emulator data
+    OpCodes: array of ROpcode;
+    _opers: int64;
+    _cycles: int64;
   protected
     FState: ECPUState;
     FIRQAllowed: boolean;
@@ -182,6 +194,8 @@ type
     // CPU status & Regs
     F: array of boolean;
     PC: AddrType;
+    procedure WriteFlag(i: integer; v: boolean);
+    function GetFlag(i: integer): boolean;
   public
     constructor Create;
   protected
@@ -194,8 +208,6 @@ type
     function Step: POpcode; virtual; abstract;
     procedure DecodeInst(var addr: AddrType; var inst: RInstuction; incAddr: boolean = True); virtual; abstract;
   protected // property Getter/Setter
-    function ReadReg(const Name: string): RegType; virtual;
-    function ReadRegW(const Name: string): AddrType; virtual;
     procedure SetIRQ(int: integer; active: boolean);
     function GetCPUStatus: RCPUStatus;
   public // events
@@ -208,13 +220,17 @@ type
     property Status: RCPUStatus read GetCPUStatus;
   public
     property IRQ[i: integer]: boolean write setIRQ;
-    property Reg[Name: integer]: RegType read ReadReg;
-    property RegW[Name: integer]: AddrType read ReadRegW;
+    property rF[i: integer]: boolean read GetFlag write WriteFlag;
+    property rPC: AddrType read PC write PC;
   public // Commands
     procedure Reset(); virtual;
     procedure SoftReset(); virtual;
     function Run(var addr: AddrType; aTrace: boolean = False; steps: integer = -1): integer; virtual;
     function Disassemble(var addr: AddrType; const endAddr: AddrType; instList: TInstructionList; memMap: TMemoryMap; steps: integer = -1): integer;
+  public // Debug /Hooks
+    procedure ClearBreakPoints();
+    procedure AddBreakPoint(const addr: AddrType; call: BreakPointHook);
+    function ReplaceOpCode(const opcode: integer; call: OpCodeCall): OpcodeCall;
   end;
 
 
@@ -237,8 +253,6 @@ type
     procedure imm_PC(); inline;
     function rel8(): iSize8; inline;
     function rel16(): iSize16; inline;
-  protected
-    OpCodes: array of ROpcode;
   public
     property ReadMem: Read8Memory16Call read FReadMem write FReadMem;
     property WriteMem: Write8Memory16Call read FWriteMem write FWriteMem;
@@ -247,6 +261,7 @@ type
     procedure DecodeInst(var addr: iSize16; var inst: RInstuction; incAddr: boolean = True); override;
   end;
 
+function CreateTrace(const Info: RCPUInfo; const Status: RCPUStatus; readMem: Read8Memory16Call): string;
 
 implementation
 
@@ -293,6 +308,74 @@ begin
   else begin
     Result := a1 - m2^.addrStart;
   end;
+end;
+
+function CreateTrace(const Info: RCPUInfo; const Status: RCPUStatus; readMem: Read8Memory16Call): string;
+var
+  n: string;
+  i: integer;
+  PC: iSize32;
+  b: iSize8;
+begin
+  Result := '';
+  with Info, Status do begin
+    PC := regs[PCreg];
+    if (instr <> nil) then begin
+      with  instr^.def^ do begin
+        Result := Format(StringReplace(fmt, TAB, ' ', [rfReplaceAll]), [instr^.operand]);
+        Result := Copy(Result + '                 ', 1, 15);
+        Result := IntToHex(PC, 4) + ': ' + Result;
+      end;
+    end
+    else begin
+      Result := IntToHex(PC, 4) + ':';
+      if Assigned(readMem) then begin;
+        for i := 0 to 4 do begin  b := ReadMem((PC + i) and $FFFF);
+          Result := Result + IntToHex(b, 2) + ' ';
+        end;
+      end
+      else begin
+        Result := Result + ' interupt       ';
+      end;
+    end;
+    for i := 0 to numRegs - 1 do begin
+      if (i <> PCreg) then begin
+        Result := Result + ' ' + regsName[i] + ': $' + IntToHex(regs[i], regsSize[i] * 2);
+      end;
+    end;
+    Result := Result + ' Flags: ';
+    for i := numFlags - 1 downto 0 do begin
+      if flagsName[i] = '-' then begin
+        if flags[i] then Result := Result + '1' else Result := Result + '0';
+      end
+      else if flagsName[i] = '?' then begin
+        Result := Result + '.';
+      end
+      else begin
+        if flags[i] then Result := Result + flagsName[i] else Result := Result + ' ';
+      end;
+    end;
+    for i := 0 to numExtras - 1 do begin
+      n := extrasName[i];
+      if (Length(n) > 3) then begin
+        n := RightStr(n, 3);
+        if (n = '+1)') then n := ''
+        else if (n = '+2)') then n := ''
+        else if (n = '+3)') then n := '';
+      end
+      else n := '';
+      if (n <> '') then  Result := Result + ' ' + extrasName[i] + ': $' + IntToHex(extras[i], extrasSize[i] * 2)
+      else Result := Result + ' $' + IntToHex(extras[i], extrasSize[i] * 2);
+    end;
+  end;
+end;
+
+{ TBreakPoint }
+
+constructor TBreakPoint.Create(aAddr: uint32; aCall: BreakPointHook);
+begin
+  addr := aAddr;
+  call := aCall;
 end;
 
 constructor TMemoryMap.Create;
@@ -440,20 +523,30 @@ begin
   Result := FStatus;
 end;
 
-function TCPU.ReadReg(Name: integer): RegType;
+procedure TCPU.FPOObservedChanged(ASender: TObject; Operation: TFPObservedOperation; Data: Pointer);
 begin
-  Result := 0;
+  case Operation of
+    ooFree: TBreakPoint(Data).Free;
+    ooDeleteItem: TBreakPoint(Data).Free;
+  end;
 end;
 
-function TCPU.ReadRegW(Name: integer): AddrType;
+procedure TCPU.WriteFlag(i: integer; v: boolean);
 begin
-  Result := 0;
+  F[i] := v;
+end;
+
+function TCPU.GetFlag(i: integer): boolean;
+begin
+  Result := F[i];
 end;
 
 constructor TCPU.Create;
 var
   i: integer;
 begin
+  FBreakPoints := TList.Create;
+  FBreakPoints.FPOAttachObserver(Self);
   UpdateCPUInfo();
   with FInfo do begin
     setLength(FStatus.regs, FInfo.numRegs);
@@ -526,26 +619,18 @@ begin
   end;
 end;
 
-function TCPU.ReadReg(const Name: string): RegType;
-begin
-  Result := 0;
-end;
-
-function TCPU.ReadRegW(const Name: string): AddrType;
-begin
-  Result := 0;
-end;
-
 function TCPU.Run(var addr: AddrType; aTrace: boolean = False; steps: integer = -1): integer;
 var
   opcode: POpcode;
   inst: RInstuction;
 begin
+  state := active;
   Result := 0;
   inst.addr := 0;
   PC := addr;
   if not Assigned(FTraceEvent) then aTrace := False;
   while (state <> stop) and ((steps < 0) or (Result < steps)) do begin
+    if (Result mod 4096) = 0 then Application.ProcessMessages;
     Result := (Result + 1) and $8FFFFFFF;
     opcode := nil;
     if (aTrace) then begin
@@ -565,7 +650,7 @@ begin
       end
       else begin
         FStatus.instr := nil;
-        end;
+      end;
       OnTrace(FStatus);
     end;
   end;
@@ -574,10 +659,11 @@ end;
 
 function TCPU_ClassA.Step: POpcode;
 begin
-  Inc(opers);
   Result := @OpCodes[ReadMem(PC)];
   PC := (PC + 1) and $FFFF;
   Result^.code();
+  Inc(_opers);
+  Inc(_cycles, Result^.cycle);
 end;
 
 function TCPU.Disassemble(var addr: AddrType; const endAddr: AddrType; instList: TInstructionList; memMap: TMemoryMap; steps: integer = -1): integer;
@@ -607,6 +693,22 @@ begin
       end;
     end;
   end;
+end;
+
+procedure TCPU.ClearBreakPoints();
+begin
+  FBreakPoints.Clear();
+end;
+
+procedure TCPU.AddBreakPoint(const addr: AddrType; call: BreakPointHook);
+begin
+  FBreakPoints.Add(TBreakPoint.Create(addr, call));
+end;
+
+function TCPU.ReplaceOpCode(const opcode: integer; call: OpCodeCall): OpcodeCall;
+begin
+  Result := Opcodes[opcode].code;
+  opcodes[opcode].code := call;
 end;
 
 procedure TCPU.SoftReset();
@@ -699,5 +801,6 @@ initialization
   assert(Sizeof(iSize16) > 2);
   assert(Sizeof(iSize32) >= 4);
 end.
+
 
 

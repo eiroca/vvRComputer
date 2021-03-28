@@ -25,6 +25,7 @@ uses
   uCPU, uCPU_808x, uCPU_6502,
   AvgLvlTree, typinfo,
   LMessages, LCLIntf, LCLType, LCLProc,
+  Forms,
   Classes, SysUtils;
 
 const
@@ -38,6 +39,8 @@ type
   BlockNum = 0..65535;
   PBlockNum = ^BlockNum;
   BlockOffset = 0..4095;
+
+  AddressRange = 0..(65536 * 4096);
 
   RegisterNum = 0..15;
   InterruptNum = 0..15;
@@ -229,6 +232,8 @@ type
     function AddDevice(device: TDevice): DeviceNum;
   public
     function LoadBank(const bank: BlockNum; const filename: string): boolean;
+    function LoadBIN(const filename: string; addr: integer): boolean;
+    function LoadPRG(const filename: string): integer;
   public
     property Device[idex: DeviceNum]: TDevice read GetDevice;
   public
@@ -238,6 +243,10 @@ type
   public
     function createBlock(id: BlockNum; Clear: boolean): TBlock;
     function getBlock(id: BlockNum; createIsMissing: boolean): TBlock;
+    function readMemory(const block: BlockNum; const offset: BlockOffset): byte; inline;
+    function readMemory(const addr: AddressRange): byte; inline;
+    procedure writeMemory(const block: BlockNum; const offset: BlockOffset; const v: byte); inline;
+    procedure writeMemory(const addr: AddressRange; const v: byte); inline;
   protected
     procedure Interrupt(id: InterruptNum);
     procedure RegisterWrite(reg: RegisterNum; p: RegisterValue); virtual;
@@ -249,16 +258,16 @@ type
 
   { TProcessorUnit }
 
-  TProcessorUnit = class(TDevice)
+  generic TProcessorUnit<CPUType> = class(TDevice)
   public
-    cpu: TCPU_ClassA;
+    cpu: CPUType;
   private
     banks: array[NumBank] of BlockNum;
   public
     halt: boolean;
   public
     constructor Create(aDCU: TDeviceUnit);
-  private
+  public
     function ReadMemoryCall(const address: iSize16): iSize8;
     procedure WriteMemoryCall(const address: iSize16; const val: iSize8);
   protected
@@ -273,7 +282,7 @@ type
 
   { T8080ProcessorUnit }
 
-  T8080ProcessorUnit = class(TProcessorUnit)
+  T8080ProcessorUnit = class(specialize TProcessorUnit<TCPU_8080>)
   public
     constructor Create(aDCU: TDeviceUnit);
     function ReadIOCall(const address: byte): byte;
@@ -470,6 +479,7 @@ begin
             if (status = cDone) then begin
               Result := RetVal;
               cmds.Remove(cmd);
+              Dispose(cmd);
               i := 0;
             end;
           end;
@@ -479,12 +489,12 @@ begin
     finally
       commands.UnlockList;
     end;
-    if (cmdPending > 0) then begin
+    if (cmdPending > 0) and (WAIT_TIME > 0) then begin
       sleep(WAIT_TIME);
     end;
   end;
   if (cnt >= MAX_WAITS) and (cmdPending > 0) then begin
-    raise  EBusError.Create(ClassName + ' wating timeout');
+    raise  EBusError.Create(ClassName + ' waiting timeout');
 
   end;
 end;
@@ -643,6 +653,59 @@ begin
   end;
 end;
 
+function TDeviceUnit.LoadBIN(const filename: string; addr: integer): boolean;
+var
+  DataStream: TFilestream;
+  i, len: integer;
+  v: byte;
+begin
+  Result := FileExists(filename);
+  if (Result) then begin
+    dataStream := TFileStream.Create(filename, fmOpenRead);
+    try
+      len := DataStream.Size;
+      for i := 0 to len - 1 do begin
+        v := DataStream.ReadByte;
+        writeMemory(addr, v);
+        Inc(addr);
+      end;
+    finally
+      dataStream.Free;
+    end;
+  end;
+end;
+
+function TDeviceUnit.LoadPRG(const filename: string): integer;
+var
+  DataStream: TFilestream;
+  addr, i, len: integer;
+  v: byte;
+begin
+  if (FileExists(filename)) then begin
+    dataStream := TFileStream.Create(filename, fmOpenRead);
+    len := DataStream.Size;
+    if (len > 2) then begin
+      addr := DataStream.ReadByte + 256 * DataStream.ReadByte;
+      Result := addr;
+      try
+        for i := 0 to len - 3 do begin
+          v := DataStream.ReadByte;
+          writeMemory(addr, v);
+          Inc(addr);
+        end;
+      finally
+        dataStream.Free;
+      end;
+    end
+    else begin
+      Result := -2;
+    end;
+  end
+  else begin
+    Result := -1;
+  end;
+end;
+
 procedure TDeviceUnit.DoTask;
 begin
 end;
@@ -694,6 +757,42 @@ begin
   else begin
     Result := TBlock(blk.Data);
   end;
+end;
+
+function TDeviceUnit.readMemory(const block: BlockNum; const offset: BlockOffset): byte;
+var
+  b: TBlock;
+begin
+  b := getBlock(block, False);
+  Result := b.Data[offset];
+end;
+
+function TDeviceUnit.readMemory(const addr: AddressRange): byte;
+var
+  block: BlockNum;
+  offset: BlockOffset;
+begin
+  block := (addr shr 12) and $FFFF;
+  offset := addr and $0FFF;
+  Result := readMemory(block, offset);
+end;
+
+procedure TDeviceUnit.writeMemory(const block: BlockNum; const offset: BlockOffset; const v: byte);
+var
+  b: TBlock;
+begin
+  b := getBlock(block, False);
+  b.Data[offset] := v;
+end;
+
+procedure TDeviceUnit.writeMemory(const addr: AddressRange; const v: byte);
+var
+  block: BlockNum;
+  offset: BlockOffset;
+begin
+  block := (addr shr 12) and $FFFF;
+  offset := addr and $0FFF;
+  writeMemory(block, offset, v);
 end;
 
 procedure TDeviceUnit.Interrupt(id: InterruptNum);
@@ -792,45 +891,9 @@ end;
 
 procedure T8080ProcessorUnit.TraceCPU(const trace: RCPUStatus);
 var
-  s, n: string;
-  i: integer;
-  PC: iSize32;
+  s: string;
 begin
-  s := '';
-  with cpu.Info do begin
-    PC := trace.regs[PCreg];
-    if (trace.instr <> nil) then begin
-      with  trace.instr^.def^ do begin
-        s := Format(StringReplace(fmt, TAB, ' ', [rfReplaceAll]), [trace.instr^.operand]);
-        s := Copy(s + '                 ', 1, 15);
-        s := IntToHex(PC, 4) + ': ' + s;
-      end;
-    end
-    else begin
-      s := IntToHex(PC, 4) + ': interrupt      ';
-    end;
-    for i := 0 to numRegs - 1 do begin
-      if (i <> PCreg) then begin
-        s := s + ' ' + regsName[i] + ': $' + IntToHex(trace.regs[i], regsSize[i] * 2);
-      end;
-    end;
-    s := s + ' Flags: ';
-    for i := 0 to numFlags - 1 do begin
-      if trace.flags[i] then s := s + flagsName[i] else s := s + ' ';
-    end;
-    for i := 0 to numExtras - 1 do begin
-      n := extrasName[i];
-      if (Length(n) > 3) then begin
-        n := RightStr(n, 3);
-        if (n = '+1)') then n := ''
-        else if (n = '+2)') then n := ''
-        else if (n = '+3)') then n := '';
-      end
-      else n := '';
-      if (n <> '') then  s := s + ' ' + extrasName[i] + ': $' + IntToHex(trace.extras[i], extrasSize[i] * 2)
-      else s := s + ' $' + IntToHex(trace.extras[i], extrasSize[i] * 2);
-    end;
-  end;
+  s := CreateTrace(cpu.Info, trace, nil);
   logTrace(s);
 end;
 
@@ -878,30 +941,31 @@ begin
   PMessage := StrAlloc(Length(Msg) + 1);
   StrCopy(PMessage, PChar(Msg));
   PostMessage(MessageHandler, WM_CPU_TRACE, WParam(PMessage), 0);
+  DbgOutThreadLog(Msg + chr(13));
 end;
 
 function TProcessorUnit.ReadMemoryCall(const address: iSize16): iSize8;
 var
-  bank: BlockNum;
+  block: BlockNum;
+  bank: integer;
   offset: integer;
-  b: TBlock;
 begin
-  bank := banks[address and $F000 shr 12];
+  bank := (address shr 12) and $000F;
   offset := address and $0FFF;
-  b := DCU.getBlock(bank, False);
-  Result := b.Data[offset];
+  block := banks[bank];
+  Result := DCU.readMemory(block, offset);
 end;
 
 procedure TProcessorUnit.WriteMemoryCall(const address: iSize16; const val: iSize8);
 var
-  bank: BlockNum;
+  block: BlockNum;
+  bank: integer;
   offset: integer;
-  b: TBlock;
 begin
-  bank := banks[address and $F000 shr 12];
+  bank := (address shr 12) and $000F;
   offset := address and $0FFF;
-  b := DCU.getBlock(bank, False);
-  b.Data[offset] := val;
+  block := banks[bank];
+  DCU.writeMemory(block, offset, val);
 end;
 
 procedure TProcessorUnit.Reset;

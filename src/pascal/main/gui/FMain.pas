@@ -21,8 +21,11 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, strutils,
   LMessages, LCLIntf, LCLType, LCLProc, ExtCtrls, ComCtrls, Grids, MaskEdit,
-  uCPU, AvgLvlTree,
-  uDevice, Types, TypInfo;
+  AvgLvlTree, FTerminal,
+  uCPU, uCPU_808x,
+  uDevice,
+  uEmuCPM,
+  Types, TypInfo;
 
 type
 
@@ -34,16 +37,21 @@ type
     bCPU_Status: TButton;
     bCPU_Halt: TButton;
     bCPU_SoftReset: TButton;
+    cbLog: TCheckBox;
+    iRun: TButton;
     cbTrace: TCheckBox;
     dgDevices: TDrawGrid;
+    iProgName: TEdit;
     iAdrEnd: TMaskEdit;
     iAdrStart: TMaskEdit;
     iBlockID: TMaskEdit;
     iDisAss: TButton;
     iDump: TButton;
     iExecute: TButton;
-    Label1: TLabel;
+    iSteps: TEdit;
     Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
     mOutput: TMemo;
     mTools: TMemo;
     mCPU: TMemo;
@@ -60,6 +68,7 @@ type
     procedure bCPU_HaltClick(Sender: TObject);
     procedure bCPU_SoftResetClick(Sender: TObject);
     procedure bCPU_StatusClick(Sender: TObject);
+    procedure iRunClick(Sender: TObject);
     procedure iExecuteClick(Sender: TObject);
     procedure iDisAssClick(Sender: TObject);
     procedure iDumpClick(Sender: TObject);
@@ -69,9 +78,12 @@ type
     procedure pcComputerEnter(Sender: TObject);
   private
     DCU: TDeviceUnit;
-    CPU: TProcessorUnit;
+    CPU: specialize TProcessorUnit<TCPU_8080>;
     VPU: TVideoUnit;
     SPU: TSoundUnit;
+    tlkCPM: TToolkitCPM;
+    fmTerminal: TfmTerminal;
+    procedure InitEmulator();
     procedure HandleDebug(var Msg: TLMessage); message WM_DEVICE_MESSAGE;
     procedure HandleCPUTrace(var Msg: TLMessage); message WM_CPU_TRACE;
     procedure drawLeft(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
@@ -97,7 +109,7 @@ implementation
 const
   MemoryUsageName: array [EMemoryUsage] of string = ('Code', 'Data', 'reference', 'reference');
 
-function getVal(val: string): iSize16;
+function getValHex(val: string): iSize16;
 var
   r: integer;
 begin
@@ -112,14 +124,24 @@ begin
   end;
 end;
 
+function getVal(val: string): integer;
+begin
+  Result := -1;
+  try
+    val := StringReplace(val, ' ', '', [rfReplaceAll]);
+    if (val = '') then val := '0';
+    Result := StrToInt(val);
+  except
+    on E: EConvertError do ;
+  end;
+end;
+
 { TfmMain }
 const
   ROMBANK_01 = 'bank_FFFF.bin';
 
-procedure TfmMain.FormCreate(Sender: TObject);
+procedure TfmMain.InitEmulator();
 begin
-  pcComputer.ActivePageIndex := 0;
-  mOutput.Clear;
   DCU := TDeviceUnit.Create;
   DCU.MessageHandler := fmMain.Handle;
   if not DCU.LoadBank(ROM_END, 'ROM\' + ROMBANK_01) then begin
@@ -127,6 +149,7 @@ begin
   end;
   CPU := T8085ProcessorUnit.Create(DCU);
   CPU.MessageHandler := fmMain.Handle;
+  tlkCPM := TToolkitCPM.Create(CPU.cpu);
   VPU := TVideoUnit.Create(DCU);
   VPU.MessageHandler := fmMain.Handle;
   SPU := TSoundUnit.Create(DCU);
@@ -135,6 +158,16 @@ begin
   VPU.Start;
   CPU.Start;
   DCU.Start;
+  fmTerminal := TfmTerminal.Create(Self);
+  fmTerminal.tlk := tlkCPM;
+  fmTerminal.Show;
+end;
+
+procedure TfmMain.FormCreate(Sender: TObject);
+begin
+  pcComputer.ActivePageIndex := 0;
+  mOutput.Clear;
+  InitEmulator();
 end;
 
 procedure TfmMain.iExecuteClick(Sender: TObject);
@@ -142,10 +175,10 @@ var
   addr: iSize16;
   adrStart: iSize16;
 begin
-  adrStart := getVal(iAdrStart.Text);
+  adrStart := getValHex(iAdrStart.Text);
   if (adrStart <> -1) then begin
     addr := adrStart;
-    CPU.cpu.Run(addr, cbTrace.Checked);
+    CPU.cpu.Run(addr, cbTrace.Checked, getVal(iSteps.Text));
   end;
 end;
 
@@ -159,6 +192,7 @@ begin
   mCPU.Lines.Clear;
   status := CPU.cpu.Status;
   info := CPU.cpu.Info;
+  mCPU.Lines.Add(CreateTrace(info, status, @CPU.ReadMemoryCall));
   with  info, status do begin
     mCPU.Lines.Add('Interrupts are ' + BoolToStr(IntEnabled, 'enabled', 'disabled'));
     for i := 0 to numIRQs - 1 do begin
@@ -170,6 +204,38 @@ begin
     end;
   end;
   UpdateCPU_GUI();
+end;
+
+procedure TfmMain.iRunClick(Sender: TObject);
+var
+  addr: integer;
+  path, ext: string;
+  start: TDateTime;
+begin
+  path := iProgName.Text;
+  if (Pos('.', path) < 1) then begin
+    path := path + '.PRG';
+  end;
+  ext := LowerCase(Copy(path, Length(path) - 3, 4));
+  if (ext = '.prg') then begin
+    addr := DCU.LoadPRG(path);
+  end
+  else if (ext = '.com') then begin
+    addr := $0100;
+    DCU.LoadBIN(path, addr);
+  end
+  else begin
+    addr := -3;
+  end;
+  if (addr >= 0) then begin
+    start := Now;
+    CPU.cpu.Run(addr, cbTrace.Checked, getVal(iSteps.Caption));
+    start := Now - Start;
+    mTools.Lines.Add(Format(ExtractFileName(path) + ' executed in %s', [TimeToStr(start)]));
+  end
+  else begin
+    mTools.Lines.Add(Format('Error %d loading file %s', [addr, path]));
+  end;
 end;
 
 procedure TfmMain.bCPU_HaltClick(Sender: TObject);
@@ -229,9 +295,9 @@ var
   inst: PInstruction;
   s, cmt: string;
 begin
-  adrStart := getVal(iAdrStart.Text);
+  adrStart := getValHex(iAdrStart.Text);
   if (adrStart <> -1) then begin
-    adrEnd := getVal(iAdrEnd.Text);
+    adrEnd := getValHex(iAdrEnd.Text);
     if (adrEnd = -1) then adrEnd := adrStart + 20;
     instList := TInstructionList.Create;
     memMap := TMemoryMap.Create;
@@ -338,7 +404,7 @@ procedure TfmMain.iDumpClick(Sender: TObject);
 var
   block: integer;
 begin
-  block := getVal(iBlockID.Text);
+  block := getValHex(iBlockID.Text);
   if (block <> -1) then  DumpBlock(block);
 end;
 
@@ -451,7 +517,12 @@ var
 begin
   MsgStr := PChar(Msg.wparam);
   MsgPasStr := StrPas(MsgStr);
-  mTools.Lines.Add(MsgPasStr);
+  if not cbLog.Checked then begin
+    mTools.Lines.Add(MsgPasStr);
+  end
+  else begin
+    DbgOutThreadLog(MsgPasStr + chr(13));
+  end;
   StrDispose(MsgStr);
 end;
 

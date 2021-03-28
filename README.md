@@ -3,8 +3,8 @@
 ## Simulator of computer
 
 CPU supported:
- - 8080 / 8085 with and without undocumented opcodes
- - 6502 with and without undocumented opcodes
+ - 8080 / 8085 
+ - 6502 / 65C02 
 
 Video Card supported:
 

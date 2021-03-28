@@ -44,7 +44,8 @@ type
 
   TCPU_6502 = class(TCPU_ClassA)
   private
-    StackBase: iSize16;
+    DP_Base: iSize16;
+    SP_Base: iSize16;
     IRQVector: iSize16;
     ResetVector: iSize16;
     NMIVector: iSize16;
@@ -60,6 +61,8 @@ type
   protected
     function addr_abs(): iSize16; inline;
     function data_abs(): iSize8; inline;
+    function addr_abs_ind_c(): iSize16; inline;
+    function data_abs_ind_c(): iSize16; inline;
     function addr_abs_ind_w(): iSize16; inline;
     function data_abs_ind_w(): iSize16; inline;
     function addr_abs_idx(const idx: iSize8): iSize16; inline;
@@ -173,7 +176,7 @@ type
     procedure op_INX;
     procedure op_INY;
     procedure op_JMP_abs;
-    procedure op_JMP_abs_ind;
+    procedure op_JMP_abs_ind_w;
     procedure op_JSR_abs;
     procedure op_LDA_abs;
     procedure op_LDA_abs_idX;
@@ -264,6 +267,7 @@ type
     procedure op_DEC_A;
     procedure op_EOR_dp_ind;
     procedure op_INC_A;
+    procedure op_JMP_abs_ind_c;
     procedure op_JMP_abs_idX_ind;
     procedure op_JSR_abs_idX_ind;
     procedure op_LDA_dp_ind;
@@ -320,10 +324,13 @@ type
     procedure op_SMB6_dp;
     procedure op_SMB7_dp;
   private
-    procedure Setup6502B();
-    procedure Setup6502U();
-    procedure Setup65C02W();
-    procedure Setup65C02R();
+    procedure InitJAM();
+    procedure Init6502();
+    procedure Init6502Undoc();
+    procedure InitNOP();
+    procedure Init65C02();
+    procedure Init65C02WDC();
+    procedure Init65C02Rockwell();
   public
     constructor Create(mode: E6502Family);
   public
@@ -340,56 +347,75 @@ constructor TCPU_6502.Create(mode: E6502Family);
 begin
   inherited Create;
   SetLength(OpCodes, 256);
-  StackBase := $0100;
+  SP_Base := $0100;
+  DP_Base := $0000;
   IRQVector := $FFFE;
   ResetVector := $FFFC;
   NMIVector := $FFFA;
   case (mode) of
-    B6502: Setup6502B;
-    U6502: Setup6502U;
-    R65C02: Setup65C02R;
-    W65C02: Setup65C02W;
+    B6502: begin
+      InitJAM();
+      Init6502();
+    end;
+    U6502: begin
+      InitJAM();
+      Init6502();
+      Init6502Undoc;
+    end;
+    R65C02: begin
+      InitNOP();
+      Init65C02();
+      Init65C02Rockwell();
+    end;
+    W65C02: begin
+      InitNOP();
+      Init65C02();
+      Init65C02Rockwell();
+    end;
   end;
   Reset;
 end;
 
-procedure TCPU_6502.Setup6502U();
+procedure TCPU_6502.InitJAM();
 var
   i: integer;
   JAM: ROpcode;
 begin
-  with JAM do begin code := @op_Hang; inst := 'JAM'; fmt := 'JAM'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := [1]; end;
+  with JAM do begin code := @op_Hang; inst := 'JAM'; fmt := 'JAM'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := 1; end;
   for i := 0 to 255 do OpCodes[i] := JAM;
+end;
+
+procedure TCPU_6502.InitNOP();
+var
+  i: integer;
+  NOP: ROpcode;
+begin
+  with NOP do begin code := @op_NOP; inst := 'NOP'; fmt := 'NOP'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := 2; end;
+  for i := 0 to 255 do OpCodes[i] := NOP;
+end;
+
+procedure TCPU_6502.Init6502();
+begin
+  {$include CPUTable_6502.inc}
+end;
+
+procedure TCPU_6502.Init6502Undoc();
+begin
   {$include CPUTable_6502U.inc}
 end;
 
-procedure TCPU_6502.Setup6502B();
-var
-  i: integer;
-  JAM: ROpcode;
+procedure TCPU_6502.Init65C02();
 begin
-  with JAM do begin code := @op_Hang; inst := 'JAM'; fmt := 'JAM'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := [1]; end;
-  for i := 0 to 255 do OpCodes[i] := JAM;
-  {$include CPUTable_6502B.inc}
+  {$include CPUTable_65C02.inc}
 end;
 
-procedure TCPU_6502.Setup65C02R();
-var
-  i: integer;
-  NOP: ROpcode;
+procedure TCPU_6502.Init65C02Rockwell();
 begin
-  with NOP do begin code := @op_NOP; inst := 'NOP'; fmt := 'NOP'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := [2]; end;
-  for i := 0 to 255 do OpCodes[i] := NOP;
   {$include CPUTable_65C02R.inc}
 end;
 
-procedure TCPU_6502.Setup65C02W();
-var
-  i: integer;
-  NOP: ROpcode;
+procedure TCPU_6502.Init65C02WDC();
 begin
-  with NOP do begin code := @op_NOP; inst := 'NOP'; fmt := 'NOP'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := [2]; end;
-  for i := 0 to 255 do OpCodes[i] := NOP;
   {$include CPUTable_65C02W.inc}
 end;
 
@@ -411,8 +437,8 @@ begin
   F[Flag_N] := False;
   state := active;
   FIRQAllowed := False;
-  opers := 0;
-  cycles := 0;
+  _opers := 0;
+  _cycles := 0;
 end;
 
 procedure TCPU_6502.UpdateCPUStatus(fillExtra: boolean = True);
@@ -432,7 +458,7 @@ begin;
       extras[0] := ReadMem(PC);
       extras[1] := ReadMem((PC + 1) and $FFFF);
       extras[2] := ReadMem((PC + 2) and $FFFF);
-      extras[3] := ReadMem(StackBase + S) + ReadMem(StackBase + ((S + 1) and $FF)) shl 8;
+      extras[3] := ReadMem(SP_Base + S) + ReadMem(SP_Base + ((S + 1) and $FF)) shl 8;
     end;
   end;
 end;
@@ -477,19 +503,11 @@ begin
   end;
 end;
 
-procedure TCPU_6502.DoIRQ(int: integer);
-begin
-  inherited;
-  case (int) of
-    0: ;
-  end;
-end;
-
 procedure TCPU_6502.push_PC();
 begin
-  WriteMem(StackBase + S, PC and $FF);
+  WriteMem(SP_Base + S, PC and $FF);
   S := (S - 1) and $FF;
-  WriteMem(StackBase + S, PC shr 8);
+  WriteMem(SP_Base + S, PC shr 8);
   S := (S - 1) and $FF;
 end;
 
@@ -498,22 +516,38 @@ var
   b1, b2: iSize8;
 begin
   S := (S + 1) and $FF;
-  b1 := ReadMem(StackBase + S);
+  b1 := ReadMem(SP_Base + S);
   S := (S + 1) and $FF;
-  b2 := ReadMem(StackBase + S);
+  b2 := ReadMem(SP_Base + S);
   PC := b1 + b2 shr 8;
 end;
 
 procedure TCPU_6502.push(v: iSize8);
 begin
-  WriteMem(StackBase + S, v and $FF);
+  WriteMem(SP_Base + S, v and $FF);
   S := (S - 1) and $FF;
 end;
 
 function TCPU_6502.pull(): iSize8;
 begin
   S := (S + 1) and $FF;
-  Result := ReadMem(StackBase + S);
+  Result := ReadMem(SP_Base + S);
+end;
+
+procedure TCPU_6502.DoIRQ(int: integer);
+var
+  vec: iSize16;
+begin
+  if (state = wait) then state := active;
+  FIRQs[int].active := False;
+  push_PC();
+  push(FlagsToByte());
+  case (int) of
+    0: vec := ResetVector;
+    1: vec := NMIVector;
+    2: vec := IRQVector;
+  end;
+  PC := ReadMem(vec) + ReadMem(vec + 1) shl 8;
 end;
 
 procedure TCPU_6502.UpdateNZ(const r: iSize8);
@@ -552,6 +586,28 @@ var
   addr: iSize16;
 begin
   addr := addr_abs();
+  Result := ReadMem(addr);
+end;
+
+function TCPU_6502.addr_abs_ind_c(): iSize16;
+var
+  b1, b2: iSize8;
+  add1, add2: iSize16;
+begin
+  b1 := ReadMem(PC);
+  PC := (PC + 1) and $FFFF;
+  b2 := ReadMem(PC);
+  PC := (PC + 1) and $FFFF;
+  add1 := b2 shl 8 + b1;
+  add2 := (add1 + 1) and $FFFF;
+  Result := ReadMem(add1) + ReadMem(add2) shl 8;
+end;
+
+function TCPU_6502.data_abs_ind_c(): iSize16;
+var
+  addr: iSize16;
+begin
+  addr := addr_abs_ind_c();
   Result := ReadMem(addr);
 end;
 
@@ -603,7 +659,7 @@ var
 begin
   b1 := ReadMem(PC);
   PC := (PC + 1) and $FFFF;
-  Result := b1;
+  Result := DP_Base + b1;
 end;
 
 function TCPU_6502.data_dp(): iSize8;
@@ -622,8 +678,8 @@ var
 begin
   b1 := ReadMem(PC);
   PC := (PC + 1) and $FFFF;
-  add1 := b1;
-  add2 := (add1 + 1) and $FF;
+  add1 := DP_Base + b1;
+  add2 := (add1 and $FF00) + ((add1 + 1) and $FF);
   Result := (ReadMem(add1) + ReadMem(add2) shl 8 + idx) and $FFFF;
 end;
 
@@ -641,7 +697,7 @@ var
 begin
   b1 := ReadMem(PC);
   PC := (PC + 1) and $FFFF;
-  Result := (b1 + idx) and $FF;
+  Result := DP_Base + (b1 + idx) and $FF;
 end;
 
 function TCPU_6502.data_dp_idx_w(const idx: iSize8): iSize8;
@@ -659,8 +715,8 @@ var
 begin
   b1 := ReadMem(PC);
   PC := (PC + 1) and $FFFF;
-  add1 := (b1 + idx) and $FF;
-  add2 := (add1 + 1) and $FF;
+  add1 := DP_Base + (b1 + idx) and $FF;
+  add2 := (add1 and $FF00) + ((add1 + 1) and $FF);
   Result := ReadMem(add1) + ReadMem(add2) shl 8;
 end;
 
@@ -754,7 +810,6 @@ begin
   v := ReadMem(addr);
   v := v or t;
   WriteMem(addr, v);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.int_RMB(const t: iSize8);
@@ -766,9 +821,7 @@ begin
   v := ReadMem(addr);
   v := v and (not t);
   WriteMem(addr, v);
-  Inc(cycles, 3);
 end;
-
 procedure TCPU_6502.int_BBR(const t: iSize8);
 var
   dp, rel: iSize8;
@@ -780,7 +833,6 @@ begin
   PC := (PC + 1) and $FFFF;
   v := ReadMem(dp);
   if (v and t) = 0 then PC := (PC + rel) and $FFFF;
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.int_BBS(const t: iSize8);
@@ -794,7 +846,6 @@ begin
   PC := (PC + 1) and $FFFF;
   v := ReadMem(dp);
   if (v and t) <> 0 then PC := (PC + rel) and $FFFF;
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_Hang;
@@ -809,7 +860,6 @@ var
 begin
   v := data_abs();
   int_ADC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ADC_abs_idY;
@@ -818,7 +868,6 @@ var
 begin
   v := data_abs_idx(Y);
   int_ADC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ADC_abs_idX;
@@ -827,7 +876,6 @@ var
 begin
   v := data_abs_idx(X);
   int_ADC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ADC_dp;
@@ -836,7 +884,6 @@ var
 begin
   v := data_dp();
   int_ADC(v);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_ADC_dp_idX;
@@ -845,7 +892,6 @@ var
 begin
   v := data_dp_idx_w(X);
   int_ADC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ADC_dp_idX_ind;
@@ -854,7 +900,6 @@ var
 begin
   v := data_dp_idx_ind_w(X);
   int_ADC(v);
-  Inc(cycles, 6);
 end;
 
 
@@ -864,7 +909,6 @@ var
 begin
   v := data_dp_ind_idx_w(Y);
   int_ADC(v);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_ADC_imm;
@@ -873,7 +917,6 @@ var
 begin
   v := imm8();
   int_ADC(v);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_AND_abs;
@@ -883,7 +926,6 @@ begin
   v := data_abs();
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_AND_abs_idY;
@@ -893,7 +935,6 @@ begin
   v := data_abs_idx(Y);
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_AND_abs_idX;
@@ -903,7 +944,6 @@ begin
   v := data_abs_idx(X);
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_AND_dp;
@@ -913,7 +953,6 @@ begin
   v := data_dp();
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_AND_dp_idX;
@@ -923,7 +962,6 @@ begin
   v := data_dp_idx_w(X);
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_AND_dp_idX_ind;
@@ -933,7 +971,6 @@ begin
   v := data_dp_idx_ind_w(X);
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_AND_dp_ind_idY;
@@ -943,7 +980,6 @@ begin
   v := data_dp_ind_idx_w(Y);
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_AND_imm;
@@ -953,7 +989,6 @@ begin
   v := imm8();
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_ASL_A;
@@ -963,7 +998,6 @@ begin
   t := A shl 1;
   A := (t and $FF);
   UpdateNZC(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_ASL_abs;
@@ -976,7 +1010,6 @@ begin
   t := v shl 1;
   WriteMem(addr, t and $FF);
   UpdateNZC(t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_ASL_abs_idX;
@@ -989,7 +1022,6 @@ begin
   t := v shl 1;
   WriteMem(addr, t and $FF);
   UpdateNZC(t);
-  Inc(cycles, 7);
 end;
 
 procedure TCPU_6502.op_ASL_dp;
@@ -1002,7 +1034,6 @@ begin
   t := v shl 1;
   WriteMem(addr, t and $FF);
   UpdateNZC(t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_ASL_dp_idX;
@@ -1015,7 +1046,6 @@ begin
   t := v shl 1;
   WriteMem(addr, t and $FF);
   UpdateNZC(t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_BIT_abs;
@@ -1025,7 +1055,6 @@ begin
   v := data_abs();
   t := A and v;
   UpdateNZV(v, t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_BIT_dp;
@@ -1035,7 +1064,6 @@ begin
   v := data_dp();
   t := A and v;
   UpdateNZV(v, t);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_BCC_rel8;
@@ -1045,10 +1073,7 @@ begin
   rel := rel8();
   if not F[Flag_C] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1059,10 +1084,7 @@ begin
   rel := rel8();
   if F[Flag_C] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1073,10 +1095,7 @@ begin
   rel := rel8();
   if F[Flag_Z] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1087,10 +1106,7 @@ begin
   rel := rel8();
   if not F[Flag_Z] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1101,10 +1117,7 @@ begin
   rel := rel8();
   if F[Flag_N] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1115,10 +1128,7 @@ begin
   rel := rel8();
   if not F[Flag_N] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1129,10 +1139,7 @@ begin
   rel := rel8();
   if not F[Flag_V] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1143,10 +1150,7 @@ begin
   rel := rel8();
   if F[Flag_V] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(cycles, 3);
-  end
-  else begin
-    Inc(cycles, 2);
+    Inc(_cycles, 1);
   end;
 end;
 
@@ -1158,31 +1162,26 @@ begin
   push(FlagsToByte());
   F[Flag_I] := True;
   Pc := (ReadMem(IRQVector + 1) shl 8) + ReadMem(IRQVector);
-  Inc(cycles, 7);
 end;
 
 procedure TCPU_6502.op_CLC;
 begin
   F[Flag_C] := False;
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_CLD;
 begin
   F[Flag_D] := False;
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_CLI;
 begin
   F[Flag_I] := False;
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_CLV;
 begin
   F[Flag_Z] := False;
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_CMP_abs;
@@ -1192,7 +1191,6 @@ begin
   v := data_abs();
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_CMP_abs_idY;
@@ -1202,7 +1200,6 @@ begin
   v := data_abs_idx(Y);
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_CMP_abs_idX;
@@ -1212,7 +1209,6 @@ begin
   v := data_abs_idx(X);
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_CMP_dp;
@@ -1222,7 +1218,6 @@ begin
   v := data_dp();
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_CMP_dp_idX;
@@ -1232,7 +1227,6 @@ begin
   v := data_dp_idx_w(X);
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_CMP_dp_idX_ind;
@@ -1242,7 +1236,6 @@ begin
   v := data_dp_idx_ind_w(X);
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_CMP_dp_ind_idY;
@@ -1252,7 +1245,6 @@ begin
   v := data_dp_ind_idx_w(Y);
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_CMP_imm;
@@ -1262,7 +1254,6 @@ begin
   v := imm8();
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_CPX_abs;
@@ -1272,7 +1263,6 @@ begin
   v := data_abs();
   t := X - v;
   UpdateNZC(t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_CPX_dp;
@@ -1282,7 +1272,6 @@ begin
   v := data_dp();
   t := X - v;
   UpdateNZC(t);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_CPX_imm;
@@ -1292,7 +1281,6 @@ begin
   v := imm8();
   t := X - v;
   UpdateNZC(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_CPY_abs;
@@ -1302,7 +1290,6 @@ begin
   v := data_abs();
   t := Y - v;
   UpdateNZC(t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_CPY_dp;
@@ -1312,7 +1299,6 @@ begin
   v := data_dp();
   t := Y - v;
   UpdateNZC(t);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_CPY_imm;
@@ -1322,7 +1308,6 @@ begin
   v := imm8();
   t := Y - v;
   UpdateNZC(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_DEC_abs;
@@ -1335,7 +1320,6 @@ begin
   t := v - 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_DEC_abs_idX;
@@ -1348,7 +1332,6 @@ begin
   t := v - 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 7);
 end;
 
 procedure TCPU_6502.op_DEC_dp;
@@ -1361,7 +1344,6 @@ begin
   t := v - 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_DEC_dp_idX;
@@ -1374,7 +1356,6 @@ begin
   t := v - 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_DEX;
@@ -1384,7 +1365,6 @@ begin
   t := X - 1;
   X := (t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_DEY;
@@ -1394,7 +1374,6 @@ begin
   t := Y - 1;
   Y := (t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_EOR_abs;
@@ -1404,7 +1383,6 @@ begin
   v := data_abs();
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_EOR_abs_idY;
@@ -1414,7 +1392,6 @@ begin
   v := data_abs_idx(Y);
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_EOR_abs_idX;
@@ -1424,7 +1401,6 @@ begin
   v := data_abs_idx(X);
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_EOR_dp;
@@ -1434,7 +1410,6 @@ begin
   v := data_dp();
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_EOR_dp_idX;
@@ -1444,7 +1419,6 @@ begin
   v := data_dp_idx_w(X);
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_EOR_dp_idX_ind;
@@ -1454,7 +1428,6 @@ begin
   v := data_dp_idx_ind_w(X);
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_EOR_dp_ind_idY;
@@ -1464,7 +1437,6 @@ begin
   v := data_dp_ind_idx_w(Y);
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_EOR_imm;
@@ -1474,7 +1446,6 @@ begin
   v := imm8();
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_INC_abs;
@@ -1487,7 +1458,6 @@ begin
   t := v + 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_INC_abs_idX;
@@ -1500,7 +1470,6 @@ begin
   t := v + 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 7);
 end;
 
 procedure TCPU_6502.op_INC_dp;
@@ -1513,7 +1482,6 @@ begin
   t := v + 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_INC_dp_idX;
@@ -1526,7 +1494,6 @@ begin
   t := v + 1;
   WriteMem(addr, t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_INX;
@@ -1536,7 +1503,6 @@ begin
   t := X + 1;
   X := (t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_INY;
@@ -1546,19 +1512,16 @@ begin
   t := Y + 1;
   Y := (t and $FF);
   UpdateNZ(t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_JMP_abs;
 begin
   imm_PC();
-  Inc(cycles, 3);
 end;
 
-procedure TCPU_6502.op_JMP_abs_ind;
+procedure TCPU_6502.op_JMP_abs_ind_w;
 begin
   PC := addr_abs_ind_w();
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_JSR_abs;
@@ -1568,133 +1531,114 @@ begin
   addr := addr_abs();
   push(PC - 1);
   PC := addr;
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_LDA_abs;
 begin
   A := data_abs();
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDA_abs_idY;
 begin
   A := data_abs_idx(Y);
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDA_abs_idX;
 begin
   A := data_abs_idx(X);
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDA_dp;
 begin
   A := data_dp();
   UpdateNZ(A);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_LDA_dp_idX;
 begin
   A := data_dp_idx_w(X);
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDA_dp_idX_ind;
 begin
   A := data_dp_idx_ind_w(X);
   UpdateNZ(A);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_LDA_dp_ind_idY;
 begin
   A := data_dp_ind_idx_w(Y);
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_LDA_imm;
 begin
   A := imm8();
   UpdateNZ(A);
-  Inc(cycles, 1);
 end;
 
 procedure TCPU_6502.op_LDX_abs;
 begin
   X := data_abs();
   UpdateNZ(X);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDX_abs_idY;
 begin
   X := data_abs_idx(Y);
   UpdateNZ(X);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDX_dp;
 begin
   X := data_dp();
   UpdateNZ(X);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_LDX_dp_idY;
 begin
   X := data_dp_idx_w(Y);
   UpdateNZ(X);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDX_imm;
 begin
   X := imm8();
   UpdateNZ(X);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_LDY_abs;
 begin
   Y := data_abs();
   UpdateNZ(Y);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDY_abs_idX;
 begin
   Y := data_abs_idx(X);
   UpdateNZ(Y);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDY_dp;
 begin
   Y := data_dp();
   UpdateNZ(Y);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_LDY_dp_idX;
 begin
   Y := data_dp_idx_w(X);
   UpdateNZ(Y);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_LDY_imm;
 begin
   Y := imm8();
   UpdateNZ(Y);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_LSR_abs;
@@ -1706,7 +1650,6 @@ begin
   v := ReadMem(addr);
   t := int_LSR(v);
   WriteMem(addr, t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_LSR_abs_idX;
@@ -1718,7 +1661,6 @@ begin
   v := ReadMem(addr);
   t := int_LSR(v);
   WriteMem(addr, t);
-  Inc(cycles, 7);
 end;
 
 procedure TCPU_6502.op_LSR_dp;
@@ -1730,24 +1672,20 @@ begin
   v := ReadMem(addr);
   t := int_LSR(v);
   WriteMem(addr, t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_LSR;
 begin
   A := int_LSR(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_NOP;
 begin
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_NOP_imm;
 begin
   imm8();
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_ORA_abs;
@@ -1757,7 +1695,6 @@ begin
   v := data_abs();
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ORA_abs_idY;
@@ -1767,7 +1704,6 @@ begin
   v := data_abs_idx(Y);
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ORA_abs_idX;
@@ -1777,7 +1713,6 @@ begin
   v := data_abs_idx(X);
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ORA_dp;
@@ -1787,7 +1722,6 @@ begin
   v := data_dp();
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_ORA_dp_idX;
@@ -1797,7 +1731,6 @@ begin
   v := data_dp_idx_w(X);
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ORA_dp_idX_ind;
@@ -1807,7 +1740,6 @@ begin
   v := data_dp_idx_ind_w(X);
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_ORA_dp_ind_idY;
@@ -1817,7 +1749,6 @@ begin
   v := data_dp_idx_w(Y);
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_ORA_imm;
@@ -1827,33 +1758,28 @@ begin
   v := imm8();
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_PHA;
 begin
   push(A);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_PHP;
 begin
   push(FlagsToByte());
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_PLA;
 begin
   A := pull();
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_PLP;
 begin
   FlagsFromByte(pull());
   F[Flag_U] := True;
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_ROL_abs;
@@ -1865,7 +1791,6 @@ begin
   v := ReadMem(addr);
   t := int_ROL(v);
   WriteMem(addr, t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_ROL_abs_idX;
@@ -1877,7 +1802,6 @@ begin
   v := ReadMem(addr);
   t := int_ROL(v);
   WriteMem(addr, t);
-  Inc(cycles, 7);
 end;
 
 procedure TCPU_6502.op_ROL_dp;
@@ -1889,7 +1813,6 @@ begin
   v := ReadMem(addr);
   t := int_ROL(v);
   WriteMem(addr, t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_ROL_dp_idX;
@@ -1901,13 +1824,11 @@ begin
   v := ReadMem(addr);
   t := int_ROL(v);
   WriteMem(addr, t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_ROL_A;
 begin
   A := int_ROL(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_ROR_abs;
@@ -1919,7 +1840,6 @@ begin
   v := ReadMem(addr);
   t := int_ROR(v);
   WriteMem(addr, t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_ROR_abs_idX;
@@ -1931,7 +1851,6 @@ begin
   v := ReadMem(addr);
   t := int_ROR(v);
   WriteMem(addr, t);
-  Inc(cycles, 7);
 end;
 
 procedure TCPU_6502.op_ROR_dp;
@@ -1943,7 +1862,6 @@ begin
   v := ReadMem(addr);
   t := int_ROR(v);
   WriteMem(addr, t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_ROR_dp_idX;
@@ -1955,26 +1873,22 @@ begin
   v := ReadMem(addr);
   t := int_ROR(v);
   WriteMem(addr, t);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_ROR_A;
 begin
   A := int_ROR(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_RTI;
 begin
   FlagsFromByte(pull());
   pull_PC();
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_RTS;
 begin
   PC := pull() + 1;
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_SBC_abs;
@@ -1983,7 +1897,6 @@ var
 begin
   v := data_abs();
   int_SBC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_SBC_abs_idY;
@@ -1992,7 +1905,6 @@ var
 begin
   v := data_abs_idx(Y);
   int_SBC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_SBC_abs_idX;
@@ -2001,7 +1913,6 @@ var
 begin
   v := data_abs_idx(X);
   int_SBC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_SBC_dp;
@@ -2010,7 +1921,6 @@ var
 begin
   v := data_dp();
   int_SBC(v);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_SBC_dp_idX;
@@ -2019,7 +1929,6 @@ var
 begin
   v := data_dp_idx_w(X);
   int_SBC(v);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_SBC_dp_idX_ind;
@@ -2028,7 +1937,6 @@ var
 begin
   v := data_dp_idx_ind_w(X);
   int_SBC(v);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_SBC_dp_ind_idY;
@@ -2037,7 +1945,6 @@ var
 begin
   v := data_dp_ind_idx_w(Y);
   int_SBC(v);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_SBC_imm;
@@ -2046,25 +1953,21 @@ var
 begin
   v := imm8();
   int_SBC(v);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_SEC;
 begin
   F[Flag_C] := True;
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_SED;
 begin
   F[Flag_D] := True;
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_SEI;
 begin
   F[Flag_I] := True;
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_STA_abs;
@@ -2073,7 +1976,6 @@ var
 begin
   addr := addr_abs();
   WriteMem(addr, A);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_STA_abs_idY;
@@ -2082,7 +1984,6 @@ var
 begin
   addr := addr_abs_idx(Y);
   WriteMem(addr, A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_STA_abs_idX;
@@ -2091,7 +1992,6 @@ var
 begin
   addr := addr_abs_idx(X);
   WriteMem(addr, A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_STA_dp;
@@ -2100,7 +2000,6 @@ var
 begin
   addr := addr_dp();
   WriteMem(addr, A);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_STA_dp_idX;
@@ -2109,7 +2008,6 @@ var
 begin
   addr := addr_dp_idx_w(X);
   WriteMem(addr, A);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_STA_dp_idX_ind;
@@ -2118,7 +2016,6 @@ var
 begin
   addr := addr_dp_idx_ind_w(X);
   WriteMem(addr, A);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_STA_dp_ind_idY;
@@ -2127,7 +2024,6 @@ var
 begin
   addr := addr_dp_ind_idx_w(Y);
   WriteMem(addr, A);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_STX_abs;
@@ -2136,7 +2032,6 @@ var
 begin
   addr := addr_abs();
   WriteMem(addr, X);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_STX_dp;
@@ -2145,7 +2040,6 @@ var
 begin
   addr := addr_dp();
   WriteMem(addr, X);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_STX_dp_idY;
@@ -2154,7 +2048,6 @@ var
 begin
   addr := addr_dp_idx_w(Y);
   WriteMem(addr, X);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_STY_abs;
@@ -2163,7 +2056,6 @@ var
 begin
   addr := addr_abs();
   WriteMem(addr, Y);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_STY_dp;
@@ -2172,7 +2064,6 @@ var
 begin
   addr := addr_dp();
   WriteMem(addr, Y);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_STY_dp_idX;
@@ -2181,49 +2072,42 @@ var
 begin
   addr := addr_dp_idx_w(X);
   WriteMem(addr, Y);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_TAX;
 begin
   X := A;
   UpdateNZ(X);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_TAY;
 begin
   Y := A;
   UpdateNZ(Y);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_TSX;
 begin
   X := S;
   UpdateNZ(X);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_TXA;
 begin
   A := X;
   UpdateNZ(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_TXS;
 begin
   S := X;
   UpdateNZ(S);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_TYA;
 begin
   A := Y;
   UpdateNZ(A);
-  Inc(cycles, 2);
 end;
 
 function TCPU_6502.addr_abs_idx_ind(const idx: iSize8): iSize16;
@@ -2275,7 +2159,6 @@ var
 begin
   v := data_dp_ind();
   int_ADC(v);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_AND_dp_ind;
@@ -2285,7 +2168,6 @@ begin
   v := data_dp_ind();
   A := A and v;
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_BIT_abs_idX;
@@ -2295,7 +2177,6 @@ begin
   v := data_abs_idx(X);
   t := A and v;
   UpdateNZV(v, t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_BIT_dp_idX;
@@ -2305,7 +2186,6 @@ begin
   v := data_dp_idx_w(X);
   t := A and v;
   UpdateNZV(v, t);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_BIT_imm;
@@ -2315,7 +2195,6 @@ begin
   v := imm8();
   t := A and v;
   UpdateNZV(v, t);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_BRA_rel8;
@@ -2324,7 +2203,6 @@ var
 begin
   rel := rel8();
   PC := (PC + rel) and $FFFF;
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_CMP_dp_ind;
@@ -2334,14 +2212,12 @@ begin
   v := data_dp_ind();
   t := A - v;
   UpdateNZC(t);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_DEC_A;
 begin
   A := (A - 1) and $FF;
   UpdateNZ(A);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_EOR_dp_ind;
@@ -2351,20 +2227,22 @@ begin
   v := data_dp_ind();
   A := A xor v;
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_INC_A;
 begin
   A := (A + 1) and $FF;
   UpdateNZ(A);
-  Inc(cycles, 2);
+end;
+
+procedure TCPU_6502.op_JMP_abs_ind_c;
+begin
+  PC := addr_abs_ind_c();
 end;
 
 procedure TCPU_6502.op_JMP_abs_idX_ind;
 begin
   PC := addr_abs_idx_ind(X);
-  Inc(cycles, 6);
 end;
 
 procedure TCPU_6502.op_JSR_abs_idX_ind;
@@ -2374,14 +2252,12 @@ begin
   addr := addr_abs_idx_ind(X);
   push(PC - 1);
   PC := addr;
-  Inc(cycles, 8);
 end;
 
 procedure TCPU_6502.op_LDA_dp_ind;
 begin
   A := data_dp_ind;
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_ORA_dp_ind;
@@ -2391,7 +2267,6 @@ begin
   v := data_dp_ind();
   A := A or v;
   UpdateNZ(A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_SBC_dp_ind;
@@ -2400,7 +2275,6 @@ var
 begin
   v := data_dp_ind();
   int_SBC(v);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_STA_dp_ind;
@@ -2409,7 +2283,6 @@ var
 begin
   addr := addr_dp_ind();
   WriteMem(addr, A);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_STZ_abs;
@@ -2418,7 +2291,6 @@ var
 begin
   addr := addr_abs();
   WriteMem(addr, Z);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_STZ_abs_idX;
@@ -2427,7 +2299,6 @@ var
 begin
   addr := addr_abs_idx(X);
   WriteMem(addr, Z);
-  Inc(cycles, 5);
 end;
 
 procedure TCPU_6502.op_STZ_dp;
@@ -2436,7 +2307,6 @@ var
 begin
   addr := addr_dp();
   WriteMem(addr, Z);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_STZ_dp_idX;
@@ -2445,7 +2315,6 @@ var
 begin
   addr := addr_dp_idx_w(X);
   WriteMem(addr, Z);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_TRB_abs;
@@ -2458,7 +2327,6 @@ begin
   F[Flag_Z] := (v and A) = 0;
   v := v and (not A);
   WriteMem(addr, v);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_TRB_dp;
@@ -2471,7 +2339,6 @@ begin
   F[Flag_Z] := (v and A) = 0;
   v := v and (not A);
   WriteMem(addr, v);
-  Inc(cycles, 2);
 end;
 
 procedure TCPU_6502.op_TSB_abs;
@@ -2484,7 +2351,6 @@ begin
   F[Flag_Z] := (v and A) = 0;
   v := v or A;
   WriteMem(addr, v);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_TSB_dp;
@@ -2497,7 +2363,6 @@ begin
   F[Flag_Z] := (v and A) = 0;
   v := v or A;
   WriteMem(addr, v);
-  Inc(cycles, 2);
 end;
 
 
@@ -2510,45 +2375,38 @@ begin
   v := ReadMem(addr);
   t := int_LSR(v);
   WriteMem(addr, t);
-  Inc(cycles, 8);
 end;
 
 procedure TCPU_6502.op_PHX;
 begin
   push(X);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_PHY;
 begin
   push(Y);
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_PLX;
 begin
   X := pull();
   UpdateNZ(X);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_PLY;
 begin
   Y := pull();
   UpdateNZ(Y);
-  Inc(cycles, 4);
 end;
 
 procedure TCPU_6502.op_STP;
 begin
   state := stop;
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_WAI;
 begin
   state := wait;
-  Inc(cycles, 3);
 end;
 
 procedure TCPU_6502.op_BBR0_dp_rel8;
@@ -2712,4 +2570,5 @@ begin
 end;
 
 end.
+
 
