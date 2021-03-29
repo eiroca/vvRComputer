@@ -1,9 +1,3 @@
-;******************************************************************************
-;
-; prelim.z80 - Preliminary Z80 tests - Copyright (C) 1994  Frank D. Cringle
-; zexlax.z80 - Z80 instruction set exerciser - Copyright (C) 1994  Frank D. Cringle
-; 8080 CPU support - Copyright (C) Ian Bartholomew
-;
 ; This program is free software; you can redistribute it and/or
 ; modify it under the terms of the GNU General Public License
 ; as published by the Free Software Foundation; either version 2
@@ -18,12 +12,10 @@
 ; along with this program; if not, write to the Free Software
 ; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 ;
-;******************************************************************************
+;
 ; compile with RetroAssembler
 ; Tab Size = 10
 ;
-.data
-crcval	.ds	4
 
 .segment "Constants"
 crctab	.byte	$00,$00,$00,$00
@@ -285,22 +277,26 @@ crctab	.byte	$00,$00,$00,$00
 
 .lib
 
-; crcval <- $FFFF
-.function initcrc()
-	push	psw
-	push	h
-	mvi	H, $FF
-	mov	L, H
-	shld	crcval
-	shld	crcval+2
-	pop	h
-	pop	psw
+; entry: hl points to crc
+.function CRC_init()
+	push	PSW
+	push	H
+	mvi	A, $FF
+	mov	M, A
+	inx	H
+	mov	M, A
+	inx	H
+	mov	M, A
+	inx	H
+	mov	M, A
+	pop	H
+	pop	PSW
 .endfunction
 
 ; 32-bit crc routine
 ; entry: a contains next byte, hl points to crc
 ; exit:  crc updated
-.function updcrc()
+.function CRC_upd()
 	push	psw
 	push	b
 	push	d
@@ -334,13 +330,13 @@ crctab	.byte	$00,$00,$00,$00
 .endfunction
 
 ; compare crc
-; hl points to value to compare to crcval
+; HL points to crc1
+; DE points to crc2
 ; on exit Z is the result of the compare
-.function cmpcrc()
+.function CRC_cmp()
 	push	b
 	push	d
 	push	h
-	lxi	d,crcval
 	mvi	b,4
 @Loop	ldax	d
 	cmp	m
@@ -352,4 +348,22 @@ crctab	.byte	$00,$00,$00,$00
 @Exit	pop	h
 	pop	d
 	pop	b
+.endfunction
+
+; entry: hl points to crc
+.function CRC_done()
+	push	PSW
+	push	H
+	push	B
+	mvi	B, 4
+	mvi	C, $FF
+@Loop	mov	A, M
+	xra	C
+	mov	M, A
+	inx	H
+	dcr	b
+	jnz	@Loop
+	pop	B
+	pop	H
+	pop	PSW
 .endfunction

@@ -17,7 +17,9 @@
 
 	.target	"8080"
 
-.segment "CP/M library"
+.lib
+
+IS_CPM	.equ	1
 
 WBOOT	.equ	$0000	; RE-ENTRY TO CP/M WARM BOOT
 BDOS	.equ	$0005	; BDOS ENTRY TO CP/M

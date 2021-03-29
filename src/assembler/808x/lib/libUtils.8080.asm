@@ -18,6 +18,10 @@
 	.target	"8080"
 
 .lib
+PROGSTART	.var	$0200	;
+.if IS_CPM==1
+	PROGSTART = $0100	; COM start Address
+.endif
 
 ; Push all the registers
 .macro push_Regs()
@@ -92,10 +96,81 @@
 	dad	D
 .endmacro
 
-.macro SwapNibble()
 ; Swap the nibble in A  $1F -> $F1
+.macro SwapNibble()
 	rlc
 	rlc
 	rlc
 	rlc
 .endmacro
+
+; Check if _is8085;
+; Z=0 -> 8085 Z=1 -> 8080
+.macro is8085()
+	mvi	A,2
+	ana	A	; V=0 for 8085
+	push	PSW	; V=1 for 8080, unchanged for 8085
+	pop	B
+	ana	C
+.endmacro
+
+; fill memory at hl, bc bytes with value in E
+.function fillmem()
+	push_Regs()
+	mov	m, E
+	mov	d, h
+	mov	e, l
+	inx	d
+	dcx	b
+@Loop	mov	a, m
+	stax	d
+	inx	h
+	inx	d
+	dcx	b
+	mov	a, b
+	ora	c
+	jnz	@Loop
+	pop_Regs()
+.endfunction
+
+; clear memory at hl, bc bytes
+.function clrmem()
+	push_Regs()
+	mvi	E, 0
+@Loop	mov	M, E
+	inx	h
+	dcx	b
+	mov	a, b
+	ora	c
+	jnz	@Loop
+	pop_Regs()
+.endfunction
+
+; clear dword at HL
+.function clrdword()
+	push	PSW
+	push	H
+	xra	A
+	mov	M, A
+	inx	H
+	mov	M, A
+	inx	H
+	mov	M, A
+	inx	H
+	mov	M, A
+	pop	H
+	pop	PSW
+.endfunction
+
+; fill dword at HL with A
+.function filldword()
+	push	H
+	mov	M, A
+	inx	H
+	mov	M, A
+	inx	H
+	mov	M, A
+	inx	H
+	mov	M, A
+	pop	H
+.endfunction

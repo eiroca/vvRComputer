@@ -14,13 +14,15 @@
 *)
 unit FMain;
 
-{$mode objfpc}{$H+}
+{$mode objfpc}
+{$H+}
 
 interface
 
 uses
-  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, strutils,
+  Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls,
   LMessages, LCLIntf, LCLType, LCLProc, ExtCtrls, ComCtrls, Grids, MaskEdit,
+  FileUtil,
   AvgLvlTree, FTerminal,
   uCPU, uCPU_808x,
   uDevice,
@@ -84,6 +86,7 @@ type
     tlkCPM: TToolkitCPM;
     fmTerminal: TfmTerminal;
     procedure InitEmulator();
+    function LoadROMs(const path: string): integer;
     procedure HandleDebug(var Msg: TLMessage); message WM_DEVICE_MESSAGE;
     procedure HandleCPUTrace(var Msg: TLMessage); message WM_CPU_TRACE;
     procedure drawLeft(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
@@ -94,7 +97,7 @@ type
   private
     procedure logStaus(Status: string);
     procedure DumpMem(addr: word; size: word);
-    procedure DumpBlock(block: BlockNum);
+    procedure DumpBlock(block: BlockRange);
   public
 
   end;
@@ -104,50 +107,24 @@ var
 
 implementation
 
+uses
+  uMisc;
+
 {$R *.lfm}
 
 const
   MemoryUsageName: array [EMemoryUsage] of string = ('Code', 'Data', 'reference', 'reference');
 
-function getValHex(val: string): iSize16;
-var
-  r: integer;
-begin
-  Result := -1;
-  try
-    val := StringReplace(val, ' ', '', [rfReplaceAll]);
-    if (val = '') then val := '0';
-    r := Hex2Dec(val);
-    if (r >= 0) and (r <= $FFFF) then Result := r;
-  except
-    on E: EConvertError do ;
-  end;
-end;
-
-function getVal(val: string): integer;
-begin
-  Result := -1;
-  try
-    val := StringReplace(val, ' ', '', [rfReplaceAll]);
-    if (val = '') then val := '0';
-    Result := StrToInt(val);
-  except
-    on E: EConvertError do ;
-  end;
-end;
-
 { TfmMain }
-const
-  ROMBANK_01 = 'bank_FFFF.bin';
 
 procedure TfmMain.InitEmulator();
 begin
   DCU := TDeviceUnit.Create;
   DCU.MessageHandler := fmMain.Handle;
-  if not DCU.LoadBank(ROM_END, 'ROM\' + ROMBANK_01) then begin
-    mOutput.Lines.Add('ROM (' + ROMBANK_01 + ') MISSING!');
+  if LoadROMs('ROM\') = 0 then begin
+    mOutput.Lines.Add('ROMs MISSING!');
   end;
-  CPU := T8085ProcessorUnit.Create(DCU);
+  CPU := T8080ProcessorUnit.Create(DCU);
   CPU.MessageHandler := fmMain.Handle;
   tlkCPM := TToolkitCPM.Create(CPU.cpu);
   VPU := TVideoUnit.Create(DCU);
@@ -161,6 +138,25 @@ begin
   fmTerminal := TfmTerminal.Create(Self);
   fmTerminal.tlk := tlkCPM;
   fmTerminal.Show;
+end;
+
+function TfmMain.LoadROMs(const path: string): integer;
+var
+  roms: TStrings;
+  romName, bank: string;
+  bankId: BlockRange;
+  i: integer;
+begin
+  Result := 0;
+  roms := FindAllFiles(path, 'bank_????.bin', False);
+  for i := 0 to roms.Count - 1 do begin
+    romName := roms[i];
+    bank := copy(romName, Length(path) + 6, 4);
+    bankId := getValHex(bank);
+    if DCU.LoadBanks(bankId, romName) then begin
+      Inc(Result);
+    end;
+  end;
 end;
 
 procedure TfmMain.FormCreate(Sender: TObject);
@@ -178,7 +174,8 @@ begin
   adrStart := getValHex(iAdrStart.Text);
   if (adrStart <> -1) then begin
     addr := adrStart;
-    CPU.cpu.Run(addr, cbTrace.Checked, getVal(iSteps.Text));
+    CPU.Trace(cbTrace.Checked);
+    CPU.cpu.Run(addr, getVal(iSteps.Text));
   end;
 end;
 
@@ -193,7 +190,7 @@ begin
   status := CPU.cpu.Status;
   info := CPU.cpu.Info;
   mCPU.Lines.Add(CreateTrace(info, status, @CPU.ReadMemoryCall));
-  with  info, status do begin
+  with info, status do begin
     mCPU.Lines.Add('Interrupts are ' + BoolToStr(IntEnabled, 'enabled', 'disabled'));
     for i := 0 to numIRQs - 1 do begin
       s := IRQsName[i] + ' is ' + BoolToStr(IRQs[i].active, 'on', 'off');
@@ -229,7 +226,8 @@ begin
   end;
   if (addr >= 0) then begin
     start := Now;
-    CPU.cpu.Run(addr, cbTrace.Checked, getVal(iSteps.Caption));
+    CPU.Trace(cbTrace.Checked);
+    CPU.cpu.Run(addr, getVal(iSteps.Caption));
     start := Now - Start;
     mTools.Lines.Add(Format(ExtractFileName(path) + ' executed in %s', [TimeToStr(start)]));
   end
@@ -278,7 +276,9 @@ var
 begin
   Result := '';
   for mu in (usage * [mData, mCode]) do begin
-    if (Result <> '') then Result := Result + ' ';
+    if (Result <> '') then begin
+      Result := Result + ' ';
+    end;
     Result := Result + MemoryUsageName[mu];
   end;
 end;
@@ -298,7 +298,9 @@ begin
   adrStart := getValHex(iAdrStart.Text);
   if (adrStart <> -1) then begin
     adrEnd := getValHex(iAdrEnd.Text);
-    if (adrEnd = -1) then adrEnd := adrStart + 20;
+    if (adrEnd = -1) then begin
+      adrEnd := adrStart + 20;
+    end;
     instList := TInstructionList.Create;
     memMap := TMemoryMap.Create;
     try
@@ -361,13 +363,11 @@ begin
             if (memInfo = nil) then begin
               s := 'L' + IntToHex(addr, 4) + ':';
             end
+            else if (refCode in memInfo^.usage) then begin
+              s := 'L' + IntToHex(addr, 4);
+            end
             else begin
-              if (refCode in memInfo^.usage) then begin
-                s := 'L' + IntToHex(addr, 4);
-              end
-              else begin
-                s := '';
-              end;
+              s := '';
             end;
             s := s + TAB + Format(def^.fmt, [operand]) + TAB + TAB + cmt;
             mTools.Lines.Add(s);
@@ -388,7 +388,9 @@ begin
           else if (len > 0) then begin
             s := Format('%.4x %s', [addrStart, getUsage(usage)]);
           end;
-          if (s <> '') then mTools.Lines.Add(s);
+          if (s <> '') then begin
+            mTools.Lines.Add(s);
+          end;
         end;
       end;
     finally
@@ -405,7 +407,9 @@ var
   block: integer;
 begin
   block := getValHex(iBlockID.Text);
-  if (block <> -1) then  DumpBlock(block);
+  if (block <> -1) then begin
+    DumpBlock(block);
+  end;
 end;
 
 procedure TfmMain.drawCentered(const aCanvas: TCanvas; const aRect: TRect; const msg: string);
@@ -478,10 +482,18 @@ begin
                 drawLeft(dgDevices.Canvas, aRect, IntToHex(devSubType, 2));
               end;
             end;
-            3: drawRight(dgDevices.Canvas, aRect, IntToHex(d.Conf.ramProv, 4));
-            4: drawRight(dgDevices.Canvas, aRect, IntToHex(d.Conf.romProv, 4));
-            5: drawRight(dgDevices.Canvas, aRect, IntToHex(d.Conf.ramReq, 4));
-            6: drawLeft(dgDevices.Canvas, aRect, GetEnumName(TypeInfo(d.Status), Ord(d.Status)));
+            3: begin
+              drawRight(dgDevices.Canvas, aRect, IntToHex(d.Conf.ramProv, 4));
+            end;
+            4: begin
+              drawRight(dgDevices.Canvas, aRect, IntToHex(d.Conf.romProv, 4));
+            end;
+            5: begin
+              drawRight(dgDevices.Canvas, aRect, IntToHex(d.Conf.ramReq, 4));
+            end;
+            6: begin
+              drawLeft(dgDevices.Canvas, aRect, GetEnumName(TypeInfo(d.Status), Ord(d.Status)));
+            end;
           end;
         end;
       end;
@@ -555,7 +567,7 @@ begin
   end;
 end;
 
-procedure TfmMain.DumpBlock(block: BlockNum);
+procedure TfmMain.DumpBlock(block: BlockRange);
 var
   B: TBLock;
   size: integer;

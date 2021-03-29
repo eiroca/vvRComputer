@@ -62,6 +62,7 @@ type
   TFlags = array of boolean;
 
   PCPUInfo = ^RCPUInfo;
+
   RCPUInfo = record
     dataSize: integer;
     addrSize: integer;
@@ -81,6 +82,7 @@ type
   end;
 
   POpcode = ^ROpcode;
+
   ROpcode = record
     code: OpcodeCall;
     inst: string;
@@ -92,6 +94,7 @@ type
   end;
 
   PIRQ = ^RIRQ;
+
   RIRQ = record
     masked: boolean;
     active: boolean;
@@ -99,6 +102,7 @@ type
   TIRQs = array of RIRQ;
 
   PInstruction = ^RInstuction;
+
   RInstuction = record
     def: POpcode;
     addr: iSize32;
@@ -107,6 +111,7 @@ type
   end;
 
   PCPUStatus = ^RCPUStatus;
+
   RCPUStatus = record
     instr: PInstruction;
     regs: array of iSize32;
@@ -134,6 +139,7 @@ type
   AMemoryUsage = set of EMemoryUsage;
 
   PMemoryArea = ^RMemoryArea;
+
   RMemoryArea = record
     addrStart: iSize32;
     len: iSize32;
@@ -205,7 +211,7 @@ type
   protected // Abstract
     procedure UpdateCPUInfo; virtual; abstract;
     procedure UpdateCPUStatus(fillExtra: boolean = True); virtual; abstract;
-    function Step: POpcode; virtual; abstract;
+    function DecodeOpcode: POpcode; virtual; abstract;
     procedure DecodeInst(var addr: AddrType; var inst: RInstuction; incAddr: boolean = True); virtual; abstract;
   protected // property Getter/Setter
     procedure SetIRQ(int: integer; active: boolean);
@@ -225,7 +231,8 @@ type
   public // Commands
     procedure Reset(); virtual;
     procedure SoftReset(); virtual;
-    function Run(var addr: AddrType; aTrace: boolean = False; steps: integer = -1): integer; virtual;
+    function Run(var addr: AddrType; steps: integer = -1): integer; virtual;
+    procedure Step();
     function Disassemble(var addr: AddrType; const endAddr: AddrType; instList: TInstructionList; memMap: TMemoryMap; steps: integer = -1): integer;
   public // Debug /Hooks
     procedure ClearBreakPoints();
@@ -257,7 +264,7 @@ type
     property ReadMem: Read8Memory16Call read FReadMem write FReadMem;
     property WriteMem: Write8Memory16Call read FWriteMem write FWriteMem;
   public
-    function Step: POpcode; override;
+    function DecodeOpcode: POpcode; override;
     procedure DecodeInst(var addr: iSize16; var inst: RInstuction; incAddr: boolean = True); override;
   end;
 
@@ -329,8 +336,9 @@ begin
     end
     else begin
       Result := IntToHex(PC, 4) + ':';
-      if Assigned(readMem) then begin;
-        for i := 0 to 4 do begin  b := ReadMem((PC + i) and $FFFF);
+      if Assigned(readMem) then begin
+        for i := 0 to 4 do begin
+          b := ReadMem((PC + i) and $FFFF);
           Result := Result + IntToHex(b, 2) + ' ';
         end;
       end
@@ -346,26 +354,48 @@ begin
     Result := Result + ' Flags: ';
     for i := numFlags - 1 downto 0 do begin
       if flagsName[i] = '-' then begin
-        if flags[i] then Result := Result + '1' else Result := Result + '0';
+        if flags[i] then begin
+          Result := Result + '1';
+        end
+        else begin
+          Result := Result + '0';
+        end;
       end
       else if flagsName[i] = '?' then begin
         Result := Result + '.';
       end
       else begin
-        if flags[i] then Result := Result + flagsName[i] else Result := Result + ' ';
+        if flags[i] then begin
+          Result := Result + flagsName[i];
+        end
+        else begin
+          Result := Result + ' ';
+        end;
       end;
     end;
     for i := 0 to numExtras - 1 do begin
       n := extrasName[i];
       if (Length(n) > 3) then begin
         n := RightStr(n, 3);
-        if (n = '+1)') then n := ''
-        else if (n = '+2)') then n := ''
-        else if (n = '+3)') then n := '';
+        if (n = '+1)') then begin
+          n := '';
+        end
+        else if (n = '+2)') then begin
+          n := '';
+        end
+        else if (n = '+3)') then begin
+          n := '';
+        end;
       end
-      else n := '';
-      if (n <> '') then  Result := Result + ' ' + extrasName[i] + ': $' + IntToHex(extras[i], extrasSize[i] * 2)
-      else Result := Result + ' $' + IntToHex(extras[i], extrasSize[i] * 2);
+      else begin
+        n := '';
+      end;
+      if (n <> '') then begin
+        Result := Result + ' ' + extrasName[i] + ': $' + IntToHex(extras[i], extrasSize[i] * 2);
+      end
+      else begin
+        Result := Result + ' $' + IntToHex(extras[i], extrasSize[i] * 2);
+      end;
     end;
   end;
 end;
@@ -407,8 +437,12 @@ begin
     memoryArea := PMemoryArea(Node.Data);
     usage := memoryArea^.usage;
     newBlock := (memoryAreaOld = nil);
-    if not newBlock and ((usageOld * [mCode, mData]) <> (usage * [mCode, mData])) then newBlock := True;
-    if not newBlock and ((memoryAreaOld^.addrStart + memoryAreaOld^.len) <> memoryArea^.addrStart) then newBlock := True;
+    if not newBlock and ((usageOld * [mCode, mData]) <> (usage * [mCode, mData])) then begin
+      newBlock := True;
+    end;
+    if not newBlock and ((memoryAreaOld^.addrStart + memoryAreaOld^.len) <> memoryArea^.addrStart) then begin
+      newBlock := True;
+    end;
     if newBlock then begin
       memoryAreaOld := memoryArea;
       usageOld := usage;
@@ -436,7 +470,9 @@ var
 begin
   node := FindKey(@addr, @AddressRangeFinder);
   Result := nil;
-  if (node <> nil) then Result := PMemoryArea(node.Data);
+  if (node <> nil) then begin
+    Result := PMemoryArea(node.Data);
+  end;
 end;
 
 procedure TMemoryMap.AddCode(const addr: iSize32; const aLen: integer);
@@ -526,8 +562,12 @@ end;
 procedure TCPU.FPOObservedChanged(ASender: TObject; Operation: TFPObservedOperation; Data: Pointer);
 begin
   case Operation of
-    ooFree: TBreakPoint(Data).Free;
-    ooDeleteItem: TBreakPoint(Data).Free;
+    ooFree: begin
+      TBreakPoint(Data).Free;
+    end;
+    ooDeleteItem: begin
+      TBreakPoint(Data).Free;
+    end;
   end;
 end;
 
@@ -599,7 +639,9 @@ end;
 
 procedure TCPU.DoIRQ(int: integer);
 begin
-  if (state = wait) then state := active;
+  if (state = wait) then begin
+    state := active;
+  end;
   FIRQs[int].active := False;
 end;
 
@@ -619,45 +661,51 @@ begin
   end;
 end;
 
-function TCPU.Run(var addr: AddrType; aTrace: boolean = False; steps: integer = -1): integer;
+procedure TCPU.Step();
 var
   opcode: POpcode;
   inst: RInstuction;
 begin
+  opcode := nil;
+  if Assigned(FTraceEvent) then begin
+    inst.addr := 0;
+    UpdateCPUStatus();
+    DecodeInst(PC, inst, False);
+  end;
+  if CheckIRQs() = True then begin
+    DoFirstIRQ();
+  end;
+  if state = active then begin
+    // No IRQs execute a opcode
+    opcode := DecodeOpcode;
+  end;
+  if Assigned(FTraceEvent) then begin
+    if (opcode <> nil) then begin
+      FStatus.instr := @inst;
+    end
+    else begin
+      FStatus.instr := nil;
+    end;
+    OnTrace(FStatus);
+  end;
+end;
+
+function TCPU.Run(var addr: AddrType; steps: integer = -1): integer;
+begin
   state := active;
   Result := 0;
-  inst.addr := 0;
   PC := addr;
-  if not Assigned(FTraceEvent) then aTrace := False;
   while (state <> stop) and ((steps < 0) or (Result < steps)) do begin
-    if (Result mod 4096) = 0 then Application.ProcessMessages;
+    if (Result mod 4096) = 0 then begin
+      Application.ProcessMessages;
+    end;
     Result := (Result + 1) and $8FFFFFFF;
-    opcode := nil;
-    if (aTrace) then begin
-      UpdateCPUStatus();
-      DecodeInst(PC, inst, False);
-    end;
-    if CheckIRQs() = True then begin
-      DoFirstIRQ();
-    end;
-    if state = active then begin
-      // No IRQs execute a opcode
-      opcode := Step;
-    end;
-    if (aTrace) then begin
-      if (opcode <> nil) then begin
-        FStatus.instr := @inst;
-      end
-      else begin
-        FStatus.instr := nil;
-      end;
-      OnTrace(FStatus);
-    end;
+    Step();
   end;
   addr := PC;
 end;
 
-function TCPU_ClassA.Step: POpcode;
+function TCPU_ClassA.DecodeOpcode: POpcode;
 begin
   Result := @OpCodes[ReadMem(PC)];
   PC := (PC + 1) and $FFFF;
@@ -738,7 +786,9 @@ begin
     b2 := ReadMem(addr + 1 + endian_offset[Info.littleEndian, 1]);
     prm := b2 shl 8 + b1;
   end;
-  if (incAddr) then addr := addr + len;
+  if (incAddr) then begin
+    addr := addr + len;
+  end;
   inst.operand := prm;
 end;
 
@@ -801,6 +851,4 @@ initialization
   assert(Sizeof(iSize16) > 2);
   assert(Sizeof(iSize32) >= 4);
 end.
-
-
 

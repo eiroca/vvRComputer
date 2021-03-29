@@ -23,7 +23,7 @@ CllExtMsg	.ascii "Exiting call"
 
 .lib
 
-DEBUG	.equ	0
+DEBUG	.equ	99
 
 .macro TextHome()
 	mvi	C, 2
@@ -83,8 +83,36 @@ DEBUG	.equ	0
 	TextPrintHex2()
 @Exit	.endfunction
 
+; display hex
+; display the big-endian 32-bit value pointed to by hl
+.function TextPrintHex8()
+	mvi	B, 4
+@Loop	mov	A, M
+	push	H
+	push	B
+	TextPrintHex2()
+	pop	B
+	pop	H
+	inx	H
+	dcr	B
+	jnz	@Loop
+.endfunction
+
+; display hex string (pointer in hl, byte count in b)
+.function TextPrintHexStr()
+@Loop	mov	A, M
+	push	H
+	push	B
+	TextPrintHex2()
+	pop	B
+	pop	H
+	inx	H
+	dcr	B
+	jnz	@Loop
+.endfunction
+
 .macro WriteTrace()
-.if DEBUG >= 9
+.if 0 || DEBUG >= 9 && 1
 	push_Regs()
 	TextPrint(CllEntMsg)
 	call @me
@@ -96,3 +124,42 @@ DEBUG	.equ	0
 	pop_Regs()
 .endif
 .endmacro
+
+.macro WriteStatus()
+.if 0 || (DEBUG >= 5) && 1
+	push_Regs()
+	C_WRITE('A')
+	C_WRITE(' ')
+	pop_Regs()
+	push_Regs()
+	push	PSW
+	TextPrintHex2()
+	C_WRITE(' ')
+	pop	B
+	mov	A,C
+	TextPrintHex2()
+	C_WRITE(' ')
+	C_WRITE('B')
+	C_WRITE(' ')
+	pop_Regs()
+	push_Regs()
+	mov	H,B
+	mov	L,C
+	TextPrintHex4()
+	C_WRITE(' ')
+	C_WRITE('D')
+	C_WRITE(' ')
+	pop_Regs()
+	push_Regs()
+	xchg
+	TextPrintHex4()
+	C_WRITE(' ')
+	C_WRITE('H')
+	C_WRITE(' ')
+	pop_Regs()
+	push_Regs()
+	TextPrintHex4()
+	TextNL()
+	pop_Regs()
+.endif
+.endMacro

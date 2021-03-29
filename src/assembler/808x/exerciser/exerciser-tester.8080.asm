@@ -3,6 +3,7 @@
 ; prelim.z80 - Preliminary Z80 tests - Copyright (C) 199\  Frank D. Cringle
 ; zexlax.z80 - Z80 instruction set exerciser - Copyright (C) 1994  Frank D. Cringle
 ; 8080 CPU support - Copyright (C) Ian Bartholomew
+; Revision and improvements - Copyright (C) Enrico Croce
 ;
 ; This program is free software; you can redistribute it and/or
 ; modify it under the terms of the GNU General Public License
@@ -44,103 +45,44 @@
 ; Tab Size = 10
 ;
 
-; For the purposes of this test program, the machine state consists of:
-;	a 2 byte memory operand, followed by
-;	the registers iy,ix,hl,de,bc,af,sp
-; for a total of STATESIZE bytes.
-
-; The program tests instructions (or groups of similar instructions)
-; by cycling through a sequence of machine states, executing the test
-; instruction for each one and running a 32-bit crc over the resulting
-; machine states.  At the end of the sequence the crc is compared to
-; an expected value that was found empirically on a real Z80.
-
-; A test case is defined by a descriptor which consists of:
-;	a flag mask byte,
-;	the base case,
-;	the incement vector,
-;	the shift vector,
-;	the expected crc,
-;	a short descriptive message.
-;
-; The flag mask byte is used to prevent undefined flag bits from
-; influencing the results.  Documented flags are as per Mostek Z80
-; Technical Manual.
-;
-; The next three parts of the descriptor are 20 byte vectors
-; corresponding to a IUT_SIZE byte instruction and a STATESIZE byte machine state.
-; The first part is the base case, which is the first test case of
-; the sequence.  This base is then modified according to the next 2
-; vectors.  Each 1 bit in the increment vector specifies a bit to be
-; cycled in the form of a binary counter.  For instance, if the byte
-; corresponding to the accumulator is set to $FF in the increment
-; vector, the test will be repeated for all 256 values of the
-; accumulator.  Note that 1 bits don't have to be contiguous.  The
-; number of test cases 'caused' by the increment vector is equal to
-; 2^(number of 1 bits).  The shift vector is similar, but specifies a
-; set of bits in the test case that are to be successively inverted.
-; Thus the shift vector 'causes' a number of test cases equal to the
-; number of 1 bits in it.
-
-; The total number of test cases is the product of those caused by the
-; counter and shift vectors and can easily become unweildy.  Each
-; individual test case can take a few milliseconds to execute, due to
-; the overhead of test setup and crc calculation, so test design is a
-; compromise between coverage and execution time.
-
-; This program is designed to detect differences between
-; implementations and is not ideal for diagnosing the causes of any
-; discrepancies.  However, provided a reference implementation (or
-; real system) is available, a failing test case can be isolated by
-; hand using a binary search of the test space.
-
 .segment "Resources"
+.if	0
 okmsg	.ascii	" OK \r\n$"
+.endif
+.if	1
+okmsg	.ascii	"\r$"
+.endif
 ermsg1	.ascii	" KO - CRC:$"
 ermsg2	.ascii	" found:$"
 crlf	.ascii	"\r\n$"
 
 .segment "Constants"
 IUT_SIZE	.equ	4
-STATESIZE	.equ	16
+STATESIZE	.equ	12
 TESTSIZE	.equ	IUT_SIZE+STATESIZE
 MASKSIZE	.equ	20
-
 OP_HLT	.equ	$76
 
 .data
-
 TestOKs	.ds	1	; Results of the test(s) ($00=OK)
-
-curTest	.ds	2
-
+curTest	.ds	2	; current test
+tstcnt	.ds	2	; test counter
 PTestIUT	.ds	2
 PTestSta	.ds	2
 PIncMask	.ds	2
 PShtMask	.ds	2
-
+PAndMask	.ds	2
+hlsav	.ds	2
+spsav	.ds	2	; saved stack pointer
 counter	.ds	MASKSIZE, $00
  	.ds	MASKSIZE, $00
 cntbyt	.ds	2
 cntbit	.ds	1
-
 shifter	.ds	MASKSIZE, $00
 	.ds	MASKSIZE, $00
 shfbyt	.ds	2
 shfbit	.ds	1
-
-
-; machine state after test
-msat	.ds	2	; memop
-msatSt	.ds	4	; iy,ix
-	.ds	6	; HL,DE,BC
-flgsat	.ds	1	; F
-	.ds	1	; A
-StkMrkAT	.equ	*	;
-spat	.ds	2	; stack pointer
-
-hlsav	.ds	2
-spsav	.ds	2	; saved stack pointer
+crcval	.ds	4
 
 .lib
 .function TestSuite()
@@ -148,25 +90,28 @@ spsav	.ds	2	; saved stack pointer
 	DebugTrace(0)
 	xra	A
 	sta	TestOKs
+	is8085()
+	jz	@tst8085
+	lxi	H, TestList8080-2
+	jmp	@testIt
+@tst8085	lxi	H, TestList8085-2
+@testIt	shld	curTest
 	lda	CTestRun
 	cpi	$00
-	jz	@TestAll
+	jz	@TestLoop
 ; Single Test in the testsuite (index 1..)
 	mov	E,A
 	mvi	D,$00
-	lxi	H, TestList-2
 	dad	D
 	dad	D
 	_HL_ind()			; HL <- (TestList + 2*D - 2)
 	RunTest()
 	jmp	@TestsDone
 ; Test all the testsuite
-@TestAll	lxi	H, TestList-2
-	shld	curTest
 @TestLoop	lhld	curTest
 	inx	H
 	inx	H
-	DebugTrace(5)
+	WriteStatus()
 	shld	curTest
 	_HL_ind()			; curTest++; HL<-(curTest)
 	mov	A, H
@@ -181,16 +126,15 @@ spsav	.ds	2	; saved stack pointer
 	lxi	H,TestOKs
 	mov	B,M
 	mvi	C,0
-	DebugTrace(5)
+	WriteStatus()
 	jz	@TestLoop
 @TestsDone
 .endfunction
 
 ; start test pointed to by (hl)
 .function RunTest()
-TestStat	DebugTrace(5)
+TestStat	WriteStatus()
 
-	push	h
 	shld	PTestIUT		; + 00
 	lxi	d, IUT_SIZE
 	dad	d
@@ -201,10 +145,13 @@ TestStat	DebugTrace(5)
 	lxi	d, TESTSIZE
 	dad	d
 	shld	PShtMask		; +40
+	lxi	d, TESTSIZE
+	dad	d
+	shld	PAndMask		; +64
 
-	_HL_ptr(PTestIUT, TESTSIZE*3+4)	; pointer to test description
+	_HL_ptr(PTestIUT, TESTSIZE*4)		; pointer to test description
 	xchg
-	C_WRITESTR_D()				; show test name
+	C_WRITESTR_D()			; show test name
 
 	; copy initial instruction under test
 	lhld	PTestIUT
@@ -231,10 +178,20 @@ TestStat	DebugTrace(5)
 	DebugTrace(3)
 	DebugTrace(4)
 
-	initcrc()		; initialise crc
+	lxi	H,crcval
+	CRC_init()		; initialise crc
+
+	xra	A	; Reset Test Counter
+	sta	tstcnt+0
+	sta	tstcnt+1
 
 ; test loop
-TestLoop	lda	IUT
+TestLoop	push	H
+	lhld	tstcnt
+	inx	H
+	shld	tstcnt
+	pop	H
+	lda	IUT
 	cpi	OP_HLT		; pragmatically avoid halt intructions
 	jz	TestDone
 	ani	$DF		; skip illegal instructions
@@ -242,17 +199,13 @@ TestLoop	lda	IUT
 	jz	TestDone
 
 ; execute the test instruction
-test	push	psw
-	push	b
-	push	d
-	push	h
-	DebugTrace(1)
+test	DebugTrace(1)
 	di			; disable interrupts
 	_HLSP()		; save stack pointer
 	shld	spsav
 	lxi	sp,StkMrkBT	; point to test-case machine state
-	pop	h		; dummy ix
-	pop	h		; dummy iy
+	;;pop	h		; dummy ix
+	;;pop	h		; dummy iy
 	pop	h
 	pop	d
 	pop	b
@@ -276,44 +229,50 @@ IUT	.ds	IUT_SIZE, $00	; max IUT_SIZE byte instruction under test
 	push	b
 	push	d
 	push	h
-	push	h		; dummy iy
-	push	h		; dummy ix
+	;;push	h		; dummy iy
+	;;push	h		; dummy ix
 	lhld	spsav		; restore stack pointer
 	sphl
 	ei			; enable interrupts
 	lhld	msbt		; copy memory operand
 	shld	msat
-	lxi	H, flgsat		; flags after test
-	lda       CFlgMskAn
-	mov	D, A
-	lda       CFlgMskOr
-	mov	E, A
+
+; Mask result after test
+@MaskStrt	DebugTrace(6, '>')
+	push_Regs()
+	lhld	PAndMask
+	xchg			; D points to mask
+	lxi	H, msat		; M points to state after test
+	mvi	B, STATESIZE
+@MaskLoop	ldax	D		; mask a byte
+	mov	C, A
 	mov	A, M
-	ana	D
-	ora	E
+	ana	C
 	mov	M, A
+	dcr	B
+	jz	@MaskEnd
+	inx	D
+	inx	H
+	jmp	@MaskLoop
+@MaskEnd	DebugTrace(6, '<')
+	pop_Regs()
+
 ; update CRC
-	mvi	B, STATESIZE		; total of STATESIZE bytes of state
+@updatCRC	mvi	B, STATESIZE	; total of STATESIZE bytes of state
 	lxi	D, msat
 	lxi	H, crcval
 @crcLoop	ldax	d
 	inx	d
-	updcrc()			; accumulate crc of this test case
+	CRC_upd()			; accumulate crc of this test case
 	dcr	b
 	jnz	@crcLoop
 	DebugTrace(2)
-	pop	h
-	pop	d
-	pop	b
-	pop	psw
 
 ; Update test status
-TestDone	NextCounter()			; increment the counter
+TestDone	NextCounter()		; increment the counter
 	jz	@SkipShft		; shift the scan bit
 	NextShifter()
-@SkipShft	pop	h		; pointer to test case
-	jnz	TestExit		; done if shift returned NZ
-	push	h
+@SkipShft	jnz	TestExit		; done if shift returned NZ
 	mvi	a,1		; initialise count and shift scanners
 	sta	cntbit
 	sta	shfbit
@@ -334,8 +293,10 @@ TestDone	NextCounter()			; increment the counter
 	jmp	TestLoop
 
 ; Test Finalization
-TestExit	_HL_ptr(PTestIUT, TESTSIZE*3)	; point to expected crc
-	cmpcrc()
+TestExit	_HL_ptr(PTestIUT, TESTSIZE*4-4)	; point to expected crc
+	lxi	D,crcval
+	CRC_cmp()
+	DebugTrace(7)
 	lxi	d,okmsg
 	jz	@tlpok
 	mvi 	A, 1		; Mark test failed
@@ -407,9 +368,6 @@ TestExit	_HL_ptr(PTestIUT, TESTSIZE*3)	; point to expected crc
 ; multi-byte counter
 .function NextCounter()
 	DebugTrace(0)
-	push	b
-	push	d
-	push	h
 	lxi	h,counter		; 20 byte counter starts here
 	lxi	d,MASKSIZE	; somewhere in here is the stop bit
 	xchg
@@ -427,18 +385,12 @@ TestExit	_HL_ptr(PTestIUT, TESTSIZE*3)	; point to expected crc
 	ana	b		; test for terminal value
 	jz	@cntend
 	mvi	m,0		; reset to zero
-@cntend	pop	b
-	pop	d
-	pop	h
-	DebugTrace(3)
+@cntend	DebugTrace(3)
 .endfunction
 
 ; multi-byte shifter
 .function NextShifter()
 	DebugTrace(4)
-	push	b
-	push	d
-	push	h
 	lxi	h,shifter	; 20 byte shift register starts here
 	lxi	d,shifter+MASKSIZE
 @shflp	mov	a,m
@@ -460,9 +412,7 @@ TestExit	_HL_ptr(PTestIUT, TESTSIZE*3)	; point to expected crc
 	inx	d
 @shflp2	mov	m,a
 	xra	a		; set Z
-@shlpe	pop	h
-	pop	d
-	pop	b
+@shlpe
 .endfunction
 
 ; setup a field of the test case
@@ -470,7 +420,6 @@ TestExit	_HL_ptr(PTestIUT, TESTSIZE*3)	; point to expected crc
 ; HL = pointer to base case
 ; DE = destination
 .function setup()
-	DebugTrace(1)
 @Loop
 	push	b
 	push	d

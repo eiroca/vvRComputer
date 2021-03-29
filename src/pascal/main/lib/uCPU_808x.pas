@@ -396,6 +396,7 @@ type
     procedure op_JNK;
     procedure op_JK;
   protected
+    procedure op_PUSH_PSW;
     procedure op_ACI;
     procedure op_ADC_A;
     procedure op_ADC_B;
@@ -3018,6 +3019,12 @@ begin
   else begin
     PC := (PC + 2) and $FFFF;
   end;
+end;
+
+procedure TCPU_8085.op_PUSH_PSW;
+begin
+  push(A);
+  push(FlagsToByte());
 end;
 
 procedure TCPU_8085.op_HLT;

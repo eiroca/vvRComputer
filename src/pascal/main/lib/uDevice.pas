@@ -32,15 +32,22 @@ const
   WM_DEVICE_MESSAGE = LM_USER + 2020;
   WM_CPU_TRACE = LM_USER + 2021;
 
+const
+  BlockSize = 4096;
+  MaxBlocks = 65536;
+  MaxDevices = 16;
+
 type
 
-  DeviceNum = 0..15;
+  DeviceRange = 0..(MaxDevices - 1);
+  BlockRange = 0..(MaxBlocks - 1);
+  DataBlockRange = 0..(BlockSize - 1);
+  AddressRange = 0..(65536 * BlockSize);
 
-  BlockNum = 0..65535;
-  PBlockNum = ^BlockNum;
-  BlockOffset = 0..4095;
-
-  AddressRange = 0..(65536 * 4096);
+  PDeviceRange = ^DeviceRange;
+  PBlockRange = ^BlockRange;
+  PDataBlockRange = ^DataBlockRange;
+  PAddressRange = ^AddressRange;
 
   RegisterNum = 0..15;
   InterruptNum = 0..15;
@@ -95,17 +102,17 @@ const
   SDUSubTypeName: array[0..0] of string = ('Generic');
 
 const
-  RAM_START: BlockNum = low(BlockNum);
-  ROM_END: BlockNum = high(BlockNum);
+  RAM_START: BlockRange = low(BlockRange);
+  ROM_END: BlockRange = high(BlockRange);
 
 type
   DeviceConfType = packed record
     devID: DeviceIDType;
     devSubType: DeviceSubType;
     vendor: VendorType;
-    ramReq: BlockNum;
-    ramProv: BlockNum;
-    romProv: BlockNum;
+    ramReq: BlockRange;
+    ramProv: BlockRange;
+    romProv: BlockRange;
     spec: SpecType;
   end;
 
@@ -121,6 +128,7 @@ type
   DeviceCommandType = (noop, interrupt, readReg, writeReg, signal);
 
   PDeviceCommand = ^DeviceCommand;
+
   DeviceCommand = record
     status: DeviceCommandStatus;
     RetVal: RegisterValue;
@@ -145,11 +153,11 @@ type
 
 type
   EBlockPerm = (pRead, pWrite);
-  BlockData = array[BlockOffset] of byte;
+  BlockData = array[DataBlockRange] of byte;
   BlockPerms = set of EBlockPerm;
 
   TBlock = class
-    id: BlockNum;
+    id: BlockRange;
     perm: BlockPerms;
     Data: BlockData;
   end;
@@ -162,7 +170,7 @@ const
   MASK_BANK = %1111000000000000;
   MASK_ADDRESS = %0000111111111111;
 
-  DCU_NUM: DeviceNum = 0;
+  DCU_NUM: DeviceRange = 0;
 
 type
   TStatusEvent = procedure(Status: string) of object;
@@ -190,15 +198,15 @@ type
     function GetIsBusy: boolean;
     procedure logDeviceStaus(Status: string);
   protected
-    devNum: DeviceNum;
+    devNum: DeviceRange;
     def: DeviceType;
-    FLocker: DeviceNum;
+    FLocker: DeviceRange;
     FDCU: TDeviceUnit;
   public
     property DCU: TDeviceUnit read FDCU write FDCU;
     property MessageHandler: HWND read FMessageHandler write FMessageHandler;
     property isBusy: boolean read GetIsBusy;
-    property locker: DeviceNum read FLocker;
+    property locker: DeviceRange read FLocker;
     property Conf: DeviceConfType read getDeviceConf;
     property Status: DeviceStatus read FStatus;
   public
@@ -223,29 +231,30 @@ type
   TDeviceUnit = class(TDevice)
   private
     blocks: TAvgLvlTree;
-    devices: array[DeviceNum] of TDevice;
+    cache: array[0..15] of TBlock;
+    devices: array[DeviceRange] of TDevice;
     regs: array[RegisterNum] of RegisterValue;
-    function GetDevice(index: DeviceNum): TDevice;
+    function GetDevice(index: DeviceRange): TDevice;
   public
     constructor Create;
     procedure DoTask; override;
-    function AddDevice(device: TDevice): DeviceNum;
+    function AddDevice(device: TDevice): DeviceRange;
   public
-    function LoadBank(const bank: BlockNum; const filename: string): boolean;
+    function LoadBanks(const startBank: BlockRange; const filename: string): boolean;
     function LoadBIN(const filename: string; addr: integer): boolean;
     function LoadPRG(const filename: string): integer;
   public
-    property Device[idex: DeviceNum]: TDevice read GetDevice;
+    property Device[idex: DeviceRange]: TDevice read GetDevice;
   public
-    function Signal(const Sender, dev: DeviceNum; const cmd: SignalNum; param: SignalValue): SignalValue;
-    function ReadRegister(const Sender, dev: DeviceNum; const reg: RegisterNum): RegisterValue;
-    procedure WriteRegister(const Sender, dev: DeviceNum; const reg: RegisterNum; const val: RegisterValue);
+    function Signal(const Sender, dev: DeviceRange; const cmd: SignalNum; param: SignalValue): SignalValue;
+    function ReadRegister(const Sender, dev: DeviceRange; const reg: RegisterNum): RegisterValue;
+    procedure WriteRegister(const Sender, dev: DeviceRange; const reg: RegisterNum; const val: RegisterValue);
   public
-    function createBlock(id: BlockNum; Clear: boolean): TBlock;
-    function getBlock(id: BlockNum; createIsMissing: boolean): TBlock;
-    function readMemory(const block: BlockNum; const offset: BlockOffset): byte; inline;
+    function createBlock(id: BlockRange; Clear: boolean): TBlock;
+    function getBlock(id: BlockRange; createIsMissing: boolean): TBlock;
+    function readMemory(const block: BlockRange; const offset: DataBlockRange): byte; inline;
     function readMemory(const addr: AddressRange): byte; inline;
-    procedure writeMemory(const block: BlockNum; const offset: BlockOffset; const v: byte); inline;
+    procedure writeMemory(const block: BlockRange; const offset: DataBlockRange; const v: byte); inline;
     procedure writeMemory(const addr: AddressRange; const v: byte); inline;
   protected
     procedure Interrupt(id: InterruptNum);
@@ -262,18 +271,19 @@ type
   public
     cpu: CPUType;
   private
-    banks: array[NumBank] of BlockNum;
+    banks: array[NumBank] of BlockRange;
   public
     halt: boolean;
   public
     constructor Create(aDCU: TDeviceUnit);
+    procedure Trace(const traceOn: boolean); virtual;
   public
     function ReadMemoryCall(const address: iSize16): iSize8;
     procedure WriteMemoryCall(const address: iSize16; const val: iSize8);
   protected
     procedure logTrace(Msg: string);
     procedure Reset; virtual;
-    procedure CopyBlock(const srcBank, dstBank: BlockNum);
+    procedure CopyBlock(const srcBank, dstBank: BlockRange);
     procedure RegisterWrite(reg: RegisterNum; p: RegisterValue); virtual;
     function RegisterRead(reg: RegisterNum): RegisterValue; virtual;
   protected
@@ -288,7 +298,8 @@ type
     function ReadIOCall(const address: byte): byte;
     procedure WriteIOCall(const address: byte; const val: byte);
     procedure HaltCall;
-    procedure TraceCPU(const trace: RCPUStatus);
+    procedure TraceCPU(const aTrace: RCPUStatus);
+    procedure Trace(const traceOn: boolean); override;
   protected
     procedure Reset; override;
   end;
@@ -319,7 +330,7 @@ implementation
 { TDeviceUnit }
 function BlockSorter(d1, d2: Pointer): integer;
 var
-  id1, id2: BlockNum;
+  id1, id2: BlockRange;
 begin
   id1 := TBlock(d1).id;
   id2 := TBlock(d2).id;
@@ -328,9 +339,9 @@ end;
 
 function BlockFinder(d1, d2: Pointer): integer;
 var
-  id1, id2: BlockNum;
+  id1, id2: BlockRange;
 begin
-  id1 := PBlockNum(d1)^;
+  id1 := PBlockRange(d1)^;
   id2 := TBlock(d2).id;
   Result := id1 - id2;
 end;
@@ -412,7 +423,9 @@ begin
               status := cDone;
             end;
             Inc(cmdDone);
-            if (cmdDone >= maxCmd) then break;
+            if (cmdDone >= maxCmd) then begin
+              break;
+            end;
           end;
         end;
       finally
@@ -447,7 +460,9 @@ procedure TDevice.logMessage(Msg: string);
 var
   PMessage: PChar;
 begin
-  if MessageHandler = 0 then Exit;
+  if MessageHandler = 0 then begin
+    Exit;
+  end;
   Msg := IntToStr(GetThreadID) + ' - ' + Msg;
   PMessage := StrAlloc(Length(Msg) + 1);
   StrCopy(PMessage, PChar(Msg));
@@ -576,7 +591,7 @@ begin
   Result := 0;
 end;
 
-function TDeviceUnit.GetDevice(index: DeviceNum): TDevice;
+function TDeviceUnit.GetDevice(index: DeviceRange): TDevice;
 begin
   Result := devices[index];
 end;
@@ -584,7 +599,7 @@ end;
 constructor TDeviceUnit.Create;
 var
   i: integer;
-  d: DeviceNum;
+  d: DeviceRange;
 begin
   inherited Create;
   DCU := Self;
@@ -612,18 +627,21 @@ begin
   def.interrupt := @interrupt;
   def.signals[DCU_SIGNAL_SCAN] := @SignalScan;
   def.signals[DCU_SIGNAL_COPY] := @SignalCopy;
-  for d := low(DeviceNum) to High(DeviceNum) do begin
+  for d := low(DeviceRange) to High(DeviceRange) do begin
     devices[d] := nil;
   end;
   devices[DCU_NUM] := Self;
   DoSignal(SIGNAL_RESET, 0);
+  for i := 0 to Length(cache) - 1 do begin
+    cache[i] := getBlock(i, True);
+  end;
 end;
 
-function TDeviceUnit.AddDevice(device: TDevice): DeviceNum;
+function TDeviceUnit.AddDevice(device: TDevice): DeviceRange;
 var
-  d: DeviceNum;
+  d: DeviceRange;
 begin
-  for d := low(DeviceNum) to High(DeviceNum) do begin
+  for d := low(DeviceRange) to High(DeviceRange) do begin
     if (devices[d] = nil) then begin
       devices[d] := device;
       Result := d;
@@ -632,24 +650,40 @@ begin
   end;
 end;
 
-function TDeviceUnit.LoadBank(const bank: BlockNum; const filename: string): boolean;
+function TDeviceUnit.LoadBanks(const startBank: BlockRange; const filename: string): boolean;
 var
   b: TBlock;
   DataStream: TFilestream;
-  len, lenRead: integer;
+  i, lenRead: integer;
+  block, numBlocks: integer;
 begin
   Result := FileExists(filename);
   if (Result) then begin
-    b := getBlock(bank, True);
-    len := SizeOf(b.Data);
-    lenRead := 0;
     try
+      block := startBank;
       dataStream := TFileStream.Create(filename, fmOpenRead);
-      lenRead := DataStream.Read(b.Data, len);
+      if (DataStream.Size mod BlockSize) = 0 then begin
+        numBlocks := DataStream.Size div BlockSize;
+        for i := 0 to numBlocks - 1 do begin
+          b := getBlock(block, True);
+          lenRead := DataStream.Read(b.Data, BlockSize);
+          Result := (lenRead = BlockSize);
+          if (not Result) then begin
+            break;
+          end;
+          Inc(block);
+          if (block > MaxBlocks) then begin
+            Result := False;
+            break;
+          end;
+        end;
+      end
+      else begin
+        Result := False;
+      end;
     finally
       dataStream.Free;
     end;
-    Result := len = lenRead;
   end;
 end;
 
@@ -710,28 +744,28 @@ procedure TDeviceUnit.DoTask;
 begin
 end;
 
-function TDeviceUnit.Signal(const Sender, dev: DeviceNum; const cmd: SignalNum; param: SignalValue): SignalValue;
+function TDeviceUnit.Signal(const Sender, dev: DeviceRange; const cmd: SignalNum; param: SignalValue): SignalValue;
 begin
   with devices[dev].def do begin
     Result := signals[cmd](param);
   end;
 end;
 
-function TDeviceUnit.ReadRegister(const Sender, dev: DeviceNum; const reg: RegisterNum): RegisterValue;
+function TDeviceUnit.ReadRegister(const Sender, dev: DeviceRange; const reg: RegisterNum): RegisterValue;
 begin
   with devices[dev].def do begin
     Result := def.regRead(reg);
   end;
 end;
 
-procedure TDeviceUnit.WriteRegister(const Sender, dev: DeviceNum; const reg: RegisterNum; const val: RegisterValue);
+procedure TDeviceUnit.WriteRegister(const Sender, dev: DeviceRange; const reg: RegisterNum; const val: RegisterValue);
 begin
   with devices[dev].def do begin
     def.regWrite(reg, val);
   end;
 end;
 
-function TDeviceUnit.createBlock(id: BlockNum; Clear: boolean): TBlock;
+function TDeviceUnit.createBlock(id: BlockRange; Clear: boolean): TBlock;
 var
   b: TBlock;
 begin
@@ -745,7 +779,7 @@ begin
   Result := b;
 end;
 
-function TDeviceUnit.getBlock(id: BlockNum; createIsMissing: boolean): TBlock;
+function TDeviceUnit.getBlock(id: BlockRange; createIsMissing: boolean): TBlock;
 var
   blk: TAvgLvlTreeNode;
 begin
@@ -759,36 +793,46 @@ begin
   end;
 end;
 
-function TDeviceUnit.readMemory(const block: BlockNum; const offset: BlockOffset): byte;
+function TDeviceUnit.readMemory(const block: BlockRange; const offset: DataBlockRange): byte;
 var
   b: TBlock;
 begin
-  b := getBlock(block, False);
+  if (block < Length(cache)) then begin
+    b := cache[block];
+  end
+  else begin
+    b := getBlock(block, False);
+  end;
   Result := b.Data[offset];
 end;
 
 function TDeviceUnit.readMemory(const addr: AddressRange): byte;
 var
-  block: BlockNum;
-  offset: BlockOffset;
+  block: BlockRange;
+  offset: DataBlockRange;
 begin
   block := (addr shr 12) and $FFFF;
   offset := addr and $0FFF;
   Result := readMemory(block, offset);
 end;
 
-procedure TDeviceUnit.writeMemory(const block: BlockNum; const offset: BlockOffset; const v: byte);
+procedure TDeviceUnit.writeMemory(const block: BlockRange; const offset: DataBlockRange; const v: byte);
 var
   b: TBlock;
 begin
-  b := getBlock(block, False);
+  if (block < Length(cache)) then begin
+    b := cache[block];
+  end
+  else begin
+    b := getBlock(block, False);
+  end;
   b.Data[offset] := v;
 end;
 
 procedure TDeviceUnit.writeMemory(const addr: AddressRange; const v: byte);
 var
-  block: BlockNum;
-  offset: BlockOffset;
+  block: BlockRange;
+  offset: DataBlockRange;
 begin
   block := (addr shr 12) and $FFFF;
   offset := addr and $0FFF;
@@ -813,11 +857,11 @@ end;
 
 function TDeviceUnit.SignalReset(p: SignalValue): SignalValue;
 var
-  d: DeviceNum;
+  d: DeviceRange;
 begin
   logMessage(ClassName + ' SignalReset');
   Result := 0;
-  for d := low(DeviceNum) + 1 to High(DeviceNum) do begin
+  for d := low(DeviceRange) + 1 to High(DeviceRange) do begin
     if Assigned(devices[d]) then begin
       devices[d].DoSignal(SIGNAL_RESET, 0);
       Inc(Result);
@@ -834,7 +878,7 @@ end;
 function TDeviceUnit.SignalCopy(p: SignalValue): SignalValue;
 var
   blkSrc, blkDst: TAvgLvlTreeNode;
-  srcBlk, dstBlk: BlockNum;
+  srcBlk, dstBlk: BlockRange;
 begin
   Result := 0;
   case (p) of
@@ -869,8 +913,8 @@ begin
     ReadIO := @ReadIOCall;
     WriteIO := @WriteIOCall;
     OnHalt := @HaltCall;
-    OnTrace := @TraceCPU;
   end;
+  Trace(False);
 end;
 
 
@@ -889,12 +933,22 @@ begin
   halt := True;
 end;
 
-procedure T8080ProcessorUnit.TraceCPU(const trace: RCPUStatus);
+procedure T8080ProcessorUnit.TraceCPU(const aTrace: RCPUStatus);
 var
   s: string;
 begin
-  s := CreateTrace(cpu.Info, trace, nil);
+  s := CreateTrace(cpu.Info, aTrace, nil);
   logTrace(s);
+end;
+
+procedure T8080ProcessorUnit.Trace(const traceOn: boolean);
+begin
+  if (traceOn) then begin
+    cpu.OnTrace := @TraceCPU;
+  end
+  else begin
+    cpu.OnTrace := nil;
+  end;
 end;
 
 procedure T8080ProcessorUnit.Reset;
@@ -933,11 +987,18 @@ begin
   halt := False;
 end;
 
+procedure TProcessorUnit.Trace(const traceOn: boolean);
+begin
+
+end;
+
 procedure TProcessorUnit.logTrace(Msg: string);
 var
   PMessage: PChar;
 begin
-  if MessageHandler = 0 then Exit;
+  if MessageHandler = 0 then begin
+    Exit;
+  end;
   PMessage := StrAlloc(Length(Msg) + 1);
   StrCopy(PMessage, PChar(Msg));
   PostMessage(MessageHandler, WM_CPU_TRACE, WParam(PMessage), 0);
@@ -946,7 +1007,7 @@ end;
 
 function TProcessorUnit.ReadMemoryCall(const address: iSize16): iSize8;
 var
-  block: BlockNum;
+  block: BlockRange;
   bank: integer;
   offset: integer;
 begin
@@ -958,7 +1019,7 @@ end;
 
 procedure TProcessorUnit.WriteMemoryCall(const address: iSize16; const val: iSize8);
 var
-  block: BlockNum;
+  block: BlockRange;
   bank: integer;
   offset: integer;
 begin
@@ -980,7 +1041,7 @@ begin
   CopyBlock(ROM_END, RAM_START);
 end;
 
-procedure TProcessorUnit.CopyBlock(const srcBank, dstBank: BlockNum);
+procedure TProcessorUnit.CopyBlock(const srcBank, dstBank: BlockRange);
 var
   res: RegisterValue;
 begin

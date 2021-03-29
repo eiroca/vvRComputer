@@ -3,3 +3,4 @@
 *.lps
 **/Thumbs.db
 *.prg
+**/compile.bat

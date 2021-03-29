@@ -3,6 +3,7 @@
 ; prelim.z80 - Preliminary Z80 tests - Copyright (C) 1994  Frank D. Cringle
 ; zexlax.z80 - Z80 instruction set exerciser - Copyright (C) 1994  Frank D. Cringle
 ; 8080 CPU support - Copyright (C) Ian Bartholomew
+; Revision and improvements - Copyright (C) Enrico Croce
 ;
 ; This program is free software; you can redistribute it and/or
 ; modify it under the terms of the GNU General Public License
@@ -19,6 +20,12 @@
 ; Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 ;
 ;******************************************************************************
+;
+; Preliminary checks. To test the minimum instructions needed to proceed
+; Errors are 'reported' by "jmp TestError".
+;
+;******************************************************************************
+;
 ; compile with RetroAssembler
 ; Tab Size = 10
 ;

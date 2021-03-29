@@ -3,6 +3,7 @@
 ; prelim.z80 - Preliminary Z80 tests - Copyright (C) 1994  Frank D. Cringle
 ; zexlax.z80 - Z80 instruction set exerciser - Copyright (C) 1994  Frank D. Cringle
 ; 8080 CPU support - Copyright (C) Ian Bartholomew
+; Revision and improvements - Copyright (C) Enrico Croce
 ;
 ; This program is free software; you can redistribute it and/or
 ; modify it under the terms of the GNU General Public License
@@ -22,8 +23,7 @@
 ; compile with RetroAssembler
 ; Tab Size = 10
 ;
-
-.lib
+	.target	"8080"
 
 ; display low nibble in a
 .function phex1()
@@ -50,81 +50,74 @@
 ; display the big-endian 32-bit value pointed to by hl
 .function phex8()
 	push_Regs()
-	mvi	b, 4
-@Loop	mov	a,m
-	phex2()
-	inx	h
-	dcr	b
-	jnz	@Loop
+	TextPrintHex8()
 	pop_Regs()
 .endfunction
 
-; display hex string (pointer in hl, byte count in b)
-.function hexstr()
-@Loop	mov	a,m
-	phex2()
-	inx	h
-	dcr	b
-	jnz	@Loop
-.endfunction
-
-; fill memory at hl, bc bytes with value in E
-.function fillmem()
+.macro	DebugTrace(msg, data=' ')
+	WriteTrace()
+.if	(msg == 1)  && (DEBUG >= 1)
+ 	; Print Instruction and state
 	push_Regs()
-	mov	m, E
-	mov	d, h
-	mov	e, l
-	inx	d
-	dcx	b
-@Loop	mov	a, m
-	stax	d
-	inx	h
-	inx	d
-	dcx	b
-	mov	a, b
-	ora	c
-	jnz	@Loop
+	C_WRITESTR(crlf)
+	lxi	h,iut
+	mvi	b,IUT_SIZE
+	TextPrintHexStr()
+    	C_WRITE(' ')
+    	mvi	b,STATESIZE
+    	lxi	h,msbt
+	TextPrintHexStr()
 	pop_Regs()
-.endfunction
-
-; clear memory at hl, bc bytes
-.function clrmem()
+.endif
+.if	(msg == 2)  && (DEBUG >= 2)
+	; Print CRC and state
 	push_Regs()
-	mvi	E, 0
-@Loop	mov	M, E
-	inx	h
-	dcx	b
-	mov	a, b
-	ora	c
-	jnz	@Loop
+	C_WRITESTR(crlf)
+	lxi	h,crcval
+	phex8()
+	C_WRITE(' ')
+	lxi	h,msat
+	mvi	b,STATESIZE
+	TextPrintHexStr()
 	pop_Regs()
-.endfunction
-
-; clear dword at HL
-.function clrdword()
-	push	PSW
-	push	H
-	xra	A
-	mov	M, A
-	inx	H
-	mov	M, A
-	inx	H
-	mov	M, A
-	inx	H
-	mov	M, A
-	pop	H
-	pop	PSW
-.endfunction
-
-; fill dword at HL with A
-.function filldword()
-	push	H
-	mov	M, A
-	inx	H
-	mov	M, A
-	inx	H
-	mov	M, A
-	inx	H
-	mov	M, A
-	pop	H
-.endfunction
+.endif
+.if	(msg == 3) && (DEBUG >= 3)
+	push_Regs()
+	C_WRITESTR(crlf)
+	lxi	h,counter
+	mvi	b,MASKSIZE
+	TextPrintHexStr()
+	C_WRITESTR(crlf)
+	lxi	h,counter+MASKSIZE
+	mvi	b,MASKSIZE
+	TextPrintHexStr()
+	pop_Regs()
+.endif
+.if	(msg == 4) && (DEBUG >= 4)
+	push_Regs()
+	C_WRITESTR(crlf)
+	lxi	h,shifter
+	mvi	b,MASKSIZE
+	TextPrintHexStr()
+	C_WRITESTR(crlf)
+	lxi	h,shifter+MASKSIZE
+	mvi	b,MASKSIZE
+	TextPrintHexStr()
+	pop_Regs()
+.endif
+.if	(msg == 6) && (DEBUG >= 6)
+	push_Regs()
+	C_WRITESTR(crlf)
+	C_WRITE(data)
+	lxi	h,msat
+	mvi	b,STATESIZE
+	TextPrintHexStr()
+	pop_Regs()
+.endif
+.if	(msg == 7) && (DEBUG >= 7)
+	push_Regs()
+	lhld	tstcnt
+	TextPrintHex4()
+	pop_Regs()
+.endif
+.endMacro
