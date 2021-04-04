@@ -1,3 +1,17 @@
+(* Copyright (C) 2020-2021 Enrico Croce - AGPL >= 3.0
+*
+* This program is free software: you can redistribute it and/or modify it under the terms of the
+* GNU Affero General Public License as published by the Free Software Foundation, either version 3
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+* even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+* Affero General Public License for more details.
+*
+* You should have received a copy of the GNU Affero General Public License along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*
+*)
 (*R*) with OpCodes[$07] do begin code:= @op_RMB0_dp; inst:= 'RMB0'; fmt:= 'RMB0'+#9+'$%.2x'; group:= Egroup.logic; mode:= Emode.dp; len:= 2; cycle:= 5; end;
 (*R*) with OpCodes[$0F] do begin code:= @op_BBR0_dp_rel8; inst:= 'BBR0'; fmt:= 'BBR0'+#9+'$%.2x,%d'; group:= Egroup.branch; mode:= Emode.dp_rel; len:= 3; cycle:= 2; end;
 (*R*) with OpCodes[$17] do begin code:= @op_RMB1_dp; inst:= 'RMB1'; fmt:= 'RMB1'+#9+'$%.2x'; group:= Egroup.logic; mode:= Emode.dp; len:= 2; cycle:= 5; end;

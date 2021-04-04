@@ -1,3 +1,17 @@
+(* Copyright (C) 2020-2021 Enrico Croce - AGPL >= 3.0
+*
+* This program is free software: you can redistribute it and/or modify it under the terms of the
+* GNU Affero General Public License as published by the Free Software Foundation, either version 3
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+* even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+* Affero General Public License for more details.
+*
+* You should have received a copy of the GNU Affero General Public License along with this program.
+* If not, see <http://www.gnu.org/licenses/>.
+*
+*)
 (* *) with OpCodes[$00] do begin code:= @op_BRK; inst:= 'BRK'; fmt:= 'BRK'; group:= Egroup.control; mode:= Emode.imm; len:= 1; cycle:= 7; end;
 (* *) with OpCodes[$01] do begin code:= @op_ORA_dp_idX_ind; inst:= 'ORA'; fmt:= 'ORA'+#9+'($%.2x,X)'; group:= Egroup.logic; mode:= Emode.dp_idx_ind; len:= 2; cycle:= 6; end;
 (* *) with OpCodes[$05] do begin code:= @op_ORA_dp; inst:= 'ORA'; fmt:= 'ORA'+#9+'$%.2x'; group:= Egroup.logic; mode:= Emode.dp; len:= 2; cycle:= 3; end;
