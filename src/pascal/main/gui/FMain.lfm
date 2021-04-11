@@ -1,14 +1,14 @@
 object fmMain: TfmMain
-  Left = 397
+  Left = 354
   Height = 546
-  Top = 273
+  Top = 212
   Width = 1067
   Caption = 'Virtual Vintage Computer'
   ClientHeight = 546
   ClientWidth = 1067
   OnCreate = FormCreate
   OnDestroy = FormDestroy
-  LCLVersion = '2.0.10.0'
+  LCLVersion = '2.0.12.0'
   object StatusBar1: TStatusBar
     Left = 0
     Height = 23
@@ -21,9 +21,9 @@ object fmMain: TfmMain
     Height = 523
     Top = 0
     Width = 1067
-    ActivePage = TabSheet4
+    ActivePage = TabSheet1
     Align = alClient
-    TabIndex = 1
+    TabIndex = 0
     TabOrder = 1
     OnEnter = pcComputerEnter
     object TabSheet1: TTabSheet
