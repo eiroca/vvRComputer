@@ -22,8 +22,8 @@ interface
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls,
   LMessages, LCLIntf, LCLType, LCLProc, ExtCtrls, ComCtrls, Grids, MaskEdit,
-  FileUtil,
-  AvgLvlTree, FTerminal,
+  FileUtil, DateUtils,
+  AvgLvlTree, uStringTerminal, uScreenTerminal,
   uCPU, uCPU_808x,
   uDevice,
   uEmuCPM,
@@ -80,11 +80,12 @@ type
     procedure pcComputerEnter(Sender: TObject);
   private
     DCU: TDeviceUnit;
-    CPU: specialize TProcessorUnit<TCPU_8080>;
+    CPU: T8080ProcessorUnit;
     VPU: TVideoUnit;
     SPU: TSoundUnit;
     tlkCPM: TToolkitCPM;
-    fmTerminal: TfmTerminal;
+    //fmConsole: FScreenTerminal;
+    fmConsole: FStringTerminal;
     procedure InitEmulator();
     function LoadROMs(const path: string): integer;
     procedure HandleDebug(var Msg: TLMessage); message WM_DEVICE_MESSAGE;
@@ -119,6 +120,9 @@ const
 
 procedure TfmMain.InitEmulator();
 begin
+  //fmConsole := FScreenTerminal.Create(Self);
+  fmConsole := FStringTerminal.Create(Self);
+  fmConsole.Show;
   DCU := TDeviceUnit.Create;
   DCU.MessageHandler := fmMain.Handle;
   if LoadROMs('ROM\') = 0 then begin
@@ -126,7 +130,7 @@ begin
   end;
   CPU := T8080ProcessorUnit.Create(DCU);
   CPU.MessageHandler := fmMain.Handle;
-  tlkCPM := TToolkitCPM.Create(CPU.cpu);
+  tlkCPM := TToolkitCPM.Create(CPU.cpu, fmConsole.term);
   VPU := TVideoUnit.Create(DCU);
   VPU.MessageHandler := fmMain.Handle;
   SPU := TSoundUnit.Create(DCU);
@@ -135,9 +139,6 @@ begin
   VPU.Start;
   CPU.Start;
   DCU.Start;
-  fmTerminal := TfmTerminal.Create(Self);
-  fmTerminal.tlk := tlkCPM;
-  fmTerminal.Show;
 end;
 
 function TfmMain.LoadROMs(const path: string): integer;
@@ -207,7 +208,11 @@ procedure TfmMain.iRunClick(Sender: TObject);
 var
   addr: integer;
   path, ext: string;
-  start: TDateTime;
+  tStart, tEnd: TDateTime;
+  elapsed: double;
+  trace: boolean;
+  ope, cyc: int64;
+  mhz, mip: double;
 begin
   path := iProgName.Text;
   if (Pos('.', path) < 1) then begin
@@ -225,11 +230,25 @@ begin
     addr := -3;
   end;
   if (addr >= 0) then begin
-    start := Now;
-    CPU.Trace(cbTrace.Checked);
+    tStart := Now;
+    trace := cbTrace.Checked;
+    CPU.Trace(trace);
+    ope := CPU.cpu.Opers;
+    cyc := CPU.cpu.Cycles;
     CPU.cpu.Run(addr, getVal(iSteps.Caption));
-    start := Now - Start;
-    mTools.Lines.Add(Format(ExtractFileName(path) + ' executed in %s', [TimeToStr(start)]));
+    tEnd := Now;
+    elapsed := MilliSecondsBetween(tEnd, tStart) / 1000;
+    if (elapsed > 0) then begin
+      ope := CPU.cpu.Opers - ope;
+      cyc := CPU.cpu.Cycles - cyc;
+      mhz := (cyc / elapsed) / 1000000;
+      mip := (ope / elapsed) / 1000000;
+    end
+    else begin
+      mhz := 0;
+      mip := 0;
+    end;
+    mTools.Lines.Add(Format(ExtractFileName(path) + ' executed in %.3fs %.3fMhz %.3fMIPS', [elapsed, mhz, mip]));
   end
   else begin
     mTools.Lines.Add(Format('Error %d loading file %s', [addr, path]));
@@ -593,4 +612,3 @@ begin
 end;
 
 end.
-

@@ -381,8 +381,18 @@ var
   i: integer;
   JAM: ROpcode;
 begin
-  with JAM do begin code := @op_Hang; inst := 'JAM'; fmt := 'JAM'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := 1; end;
-  for i := 0 to 255 do OpCodes[i] := JAM;
+  with JAM do begin
+    code := @op_Hang;
+    inst := 'JAM';
+    fmt := 'JAM';
+    group := Egroup.control;
+    mode := Emode.imp;
+    len := 1;
+    cycle := 1;
+  end;
+  for i := 0 to 255 do begin
+    OpCodes[i] := JAM;
+  end;
 end;
 
 procedure TCPU_6502.InitNOP();
@@ -390,8 +400,18 @@ var
   i: integer;
   NOP: ROpcode;
 begin
-  with NOP do begin code := @op_NOP; inst := 'NOP'; fmt := 'NOP'; group := Egroup.control; mode := Emode.imp; len := 1; cycle := 2; end;
-  for i := 0 to 255 do OpCodes[i] := NOP;
+  with NOP do begin
+    code := @op_NOP;
+    inst := 'NOP';
+    fmt := 'NOP';
+    group := Egroup.control;
+    mode := Emode.imp;
+    len := 1;
+    cycle := 2;
+  end;
+  for i := 0 to 255 do begin
+    OpCodes[i] := NOP;
+  end;
 end;
 
 procedure TCPU_6502.Init6502();
@@ -437,14 +457,15 @@ begin
   F[Flag_N] := False;
   state := active;
   FIRQAllowed := False;
-  _opers := 0;
-  _cycles := 0;
+  FOpers := 0;
+  FCycles := 0;
 end;
 
 procedure TCPU_6502.UpdateCPUStatus(fillExtra: boolean = True);
 var
   i: integer;
-begin;
+begin
+  ;
   with FStatus do begin
     regs[0] := A;
     regs[1] := X;
@@ -464,7 +485,8 @@ begin;
 end;
 
 procedure TCPU_6502.UpdateCPUInfo();
-begin;
+begin
+  ;
   with FInfo do begin
     dataSize := 8;
     addrSize := 16;
@@ -499,7 +521,9 @@ var
 begin
   Result := 0;
   for i := 0 to 7 do begin
-    if F[i] then Result := Result or bit_val[i];
+    if F[i] then begin
+      Result := Result or bit_val[i];
+    end;
   end;
 end;
 
@@ -538,14 +562,22 @@ procedure TCPU_6502.DoIRQ(int: integer);
 var
   vec: iSize16;
 begin
-  if (state = wait) then state := active;
+  if (state = wait) then begin
+    state := active;
+  end;
   FIRQs[int].active := False;
   push_PC();
   push(FlagsToByte());
   case (int) of
-    0: vec := ResetVector;
-    1: vec := NMIVector;
-    2: vec := IRQVector;
+    0: begin
+      vec := ResetVector;
+    end;
+    1: begin
+      vec := NMIVector;
+    end;
+    2: begin
+      vec := IRQVector;
+    end;
   end;
   PC := ReadMem(vec) + ReadMem(vec + 1) shl 8;
 end;
@@ -739,8 +771,12 @@ begin
     UpdateNZC(A);
   end
   else begin
-    if (((A and $0F) + (v and $0F) + c) > 9) then t := t + $06;
-    if t > $99 then t := t + $60;
+    if (((A and $0F) + (v and $0F) + c) > 9) then begin
+      t := t + $06;
+    end;
+    if t > $99 then begin
+      t := t + $60;
+    end;
     F[Flag_Z] := (t and $FF) = 0;
     F[Flag_N] := (t and $80) <> 0;
     F[Flag_V] := (((A xor v) and $80) = 0) and (((A xor t) and $80) <> 0);
@@ -759,8 +795,12 @@ begin
   F[Flag_Z] := (t and $FF) = 0;
   F[Flag_V] := (((A xor t) and $80) <> 0) and (((A xor v) and $80) <> 0);
   if (F[Flag_D]) then begin
-    if (((A and $0F) - c) < (v and $0F)) then t := t - $06;
-    if t > $99 then t := t - $60;
+    if (((A and $0F) - c) < (v and $0F)) then begin
+      t := t - $06;
+    end;
+    if t > $99 then begin
+      t := t - $60;
+    end;
   end;
   F[Flag_C] := (t < $100);
   A := (t and $FF);
@@ -822,6 +862,7 @@ begin
   v := v and (not t);
   WriteMem(addr, v);
 end;
+
 procedure TCPU_6502.int_BBR(const t: iSize8);
 var
   dp, rel: iSize8;
@@ -832,7 +873,9 @@ begin
   rel := int8(ReadMem(PC));
   PC := (PC + 1) and $FFFF;
   v := ReadMem(dp);
-  if (v and t) = 0 then PC := (PC + rel) and $FFFF;
+  if (v and t) = 0 then begin
+    PC := (PC + rel) and $FFFF;
+  end;
 end;
 
 procedure TCPU_6502.int_BBS(const t: iSize8);
@@ -845,13 +888,17 @@ begin
   rel := int8(ReadMem(PC));
   PC := (PC + 1) and $FFFF;
   v := ReadMem(dp);
-  if (v and t) <> 0 then PC := (PC + rel) and $FFFF;
+  if (v and t) <> 0 then begin
+    PC := (PC + rel) and $FFFF;
+  end;
 end;
 
 procedure TCPU_6502.op_Hang;
 begin
   state := stop;
-  if assigned(OnHalt) then OnHalt;
+  if assigned(OnHalt) then begin
+    OnHalt;
+  end;
 end;
 
 procedure TCPU_6502.op_ADC_abs;
@@ -1073,7 +1120,7 @@ begin
   rel := rel8();
   if not F[Flag_C] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -1084,7 +1131,7 @@ begin
   rel := rel8();
   if F[Flag_C] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -1095,7 +1142,7 @@ begin
   rel := rel8();
   if F[Flag_Z] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -1106,7 +1153,7 @@ begin
   rel := rel8();
   if not F[Flag_Z] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -1117,7 +1164,7 @@ begin
   rel := rel8();
   if F[Flag_N] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -1128,7 +1175,7 @@ begin
   rel := rel8();
   if not F[Flag_N] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -1139,7 +1186,7 @@ begin
   rel := rel8();
   if not F[Flag_V] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -1150,7 +1197,7 @@ begin
   rel := rel8();
   if F[Flag_V] then begin
     PC := (PC + rel) and $FFFF;
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end;
 end;
 
@@ -2570,4 +2617,3 @@ begin
 end;
 
 end.
-

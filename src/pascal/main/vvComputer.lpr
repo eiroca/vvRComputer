@@ -22,7 +22,7 @@ uses
   Forms,
   Interfaces,
   FMain,
-  FTerminal, uMisc;
+  uMisc, uScreenTerminal;
 
 {$R *.res}
 

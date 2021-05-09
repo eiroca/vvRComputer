@@ -12,7 +12,7 @@
 * If not, see <http://www.gnu.org/licenses/>.
 *
 *)
-unit FTerminal;
+unit uScreenTerminal;
 
 {$mode objfpc}{$H+}
 
@@ -24,78 +24,79 @@ uses
 
 type
 
-  { TfmTerminal }
+  { FScreenTerminal }
 
-  TfmTerminal = class(TForm)
+  FScreenTerminal = class(TForm)
     tAutoRefresh: TTimer;
     procedure FormCloseQuery(Sender: TObject; var CanClose: boolean);
     procedure FormCreate(Sender: TObject);
     procedure tAutoRefreshTimer(Sender: TObject);
   public
-    tlk: TToolkitCPM;
+    term: TScreenTerminal;
     cW, cH: integer;
     curState: boolean;
   public
     constructor Create(AOwner: TComponent); override;
     procedure RereshScreen();
-
   end;
 
 implementation
 
 {$R *.lfm}
 
-{ TfmTerminal }
+{ FScreenTerminal }
 
 const
   CUR_CHAR: array [boolean] of char = (' ', '|');
 
-procedure TfmTerminal.FormCreate(Sender: TObject);
+procedure FScreenTerminal.FormCreate(Sender: TObject);
 begin
   cH := Canvas.TextHeight('m') + 2;
   cW := Canvas.TextWidth('f') + 1;
-  Width := cW * SCREEN_WIDTH + BorderWidth;
-  Height := ch * SCREEN_HEIGHT + BorderWidth;
+  if (term <> nil) then begin
+    Width := cW * term.ScreenWidth + BorderWidth;
+    Height := ch * term.ScreenHeight + BorderWidth;
+  end
+  else begin
+    Width := cW * 80 + BorderWidth;
+    Height := ch * 25 + BorderWidth;
+  end;
   curState := True;
 end;
 
-procedure TfmTerminal.FormCloseQuery(Sender: TObject; var CanClose: boolean);
+procedure FScreenTerminal.FormCloseQuery(Sender: TObject; var CanClose: boolean);
 begin
   CanClose := False;
 end;
 
-procedure TfmTerminal.tAutoRefreshTimer(Sender: TObject);
+procedure FScreenTerminal.tAutoRefreshTimer(Sender: TObject);
 begin
   curState := not curState;
   RereshScreen();
 end;
 
-constructor TfmTerminal.Create(AOwner: TComponent);
+constructor FScreenTerminal.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  tlk := nil;
+  term := TScreenTerminal.Create(80, 25);
 end;
 
-procedure TfmTerminal.RereshScreen();
+procedure FScreenTerminal.RereshScreen();
 var
   x, y: integer;
   c: char;
 begin
-  if (tlk = nil) then  exit;
-  for y := 1 to SCREEN_HEIGHT do begin
-    for x := 1 to SCREEN_WIDTH do begin
-      c := tlk.screen[y, x];
-      Canvas.TextOut((x - 1) * cW, (y - 1) * cH, c);
-    end;
-    tlk.screenChange := False;
+  if (term = nil) then begin
+    exit;
   end;
-  Canvas.TextOut((tlk.curX - 1) * cW, (tlk.curY - 1) * cH, CUR_CHAR[curState]);
+  for y := 0 to term.ScreenHeight - 1 do begin
+    for x := 0 to term.ScreenWidth - 1 do begin
+      c := term.screen[y, x];
+      Canvas.TextOut(x * cW, y * cH, c);
+    end;
+    term.screenChange := False;
+  end;
+  Canvas.TextOut((term.curX - 1) * cW, (term.curY - 1) * cH, CUR_CHAR[curState]);
 end;
 
 end.
-
-
-
-
-
-

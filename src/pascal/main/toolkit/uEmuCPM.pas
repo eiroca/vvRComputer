@@ -22,12 +22,7 @@ uses
   uCPU, uCPU_808x,
   Classes, SysUtils;
 
-const
-  SCREEN_WIDTH = 80;
-  SCREEN_HEIGHT = 25;
-
 type
-
 
   { TToolkitCPM }
   BDOSMessage = record
@@ -36,28 +31,63 @@ type
     done: boolean;
   end;
 
-  TToolkitCPM = class
-  private
-    cpu: TCPU_8080;
-    oCallOpcode: OpcodeCall;
-    crt: TStream;
-    procedure CallInterceptor();
-  public
-    screenChange: boolean;
-    screen: array[1..SCREEN_HEIGHT, 1..SCREEN_WIDTH] of char;
-  public
-    charDelim: iSize8;
-    tabSize: iSize8;
-    curX, curY: iSize8;
-    procedure InitTerminal();
+  ITerminal = interface
     procedure ClearScreen();
     procedure ScrollUp();
     procedure WriteChar(E: iSize8);
+  end;
+
+  { TScreenTerminal }
+
+  TScreenTerminal = class(TInterfacedObject, ITerminal)
+  public
+    ScreenWidth: integer;
+    ScreenHeight: integer;
+    crt: TStream;
+    screenChange: boolean;
+    screen: array of array of char;
+  public
+    tabSize: iSize8;
+    curX, curY: iSize8;
+  public
+    constructor Create(const sizeX, sizeY: integer);
+    procedure ClearScreen();
+    procedure ScrollUp();
+    procedure WriteChar(E: iSize8);
+    destructor Destroy; override;
+  end;
+
+  { TStringTerminal }
+
+  TStringTerminal = class(TInterfacedObject, ITerminal)
+  public
+    screen: TStrings;
+    screenChange: boolean;
+  public
+    tabSize: iSize8;
+    curX, curY: iSize8;
+    ScreenWidth: integer;
+    ScreenHeight: integer;
+  public
+    constructor Create(const sOut: TStrings);
+    procedure ClearScreen();
+    procedure ScrollUp();
+    procedure WriteChar(E: iSize8);
+    destructor Destroy; override;
+  end;
+
+  TToolkitCPM = class
+  private
+    charDelim: iSize8;
+    cpu: TCPU_8080;
+    oCallOpcode: OpcodeCall;
+    term: ITerminal;
+    procedure CallInterceptor();
   public //BDOS calls
     procedure C_WRITE(var message: BDOSMessage); message $02;
     procedure C_WRITESTR(var message: BDOSMessage); message $09;
   public
-    constructor Create(aCPU: TCPU_8080);
+    constructor Create(aCPU: TCPU_8080; aTerm: ITerminal);
     destructor Destroy; override;
   end;
 
@@ -66,21 +96,174 @@ implementation
 const
   BDOS_ADDR = $0005;
 
+{ TStringTerminal }
+
+constructor TStringTerminal.Create(const sOut: TStrings);
+begin
+  ScreenWidth := 0;
+  ScreenHeight := 0;
+  screen := TStringList.Create();
+  ClearScreen();
+end;
+
+procedure TStringTerminal.ClearScreen();
+begin
+  screen.Clear();
+  curX := 1;
+  curY := 1;
+  screenChange := True;
+end;
+
+procedure TStringTerminal.ScrollUp();
+begin
+  if (screen.Count > 0) then begin
+    screen.Delete(0);
+  end;
+  screenChange := True;
+end;
+
+procedure TStringTerminal.WriteChar(E: iSize8);
+var
+  s: string;
+begin
+  case E of
+    9: begin
+      curX := ((curX + tabSize) and $F8);
+    end;
+    10: begin
+      Inc(curY);
+    end;
+    12: begin
+      ClearScreen();
+    end;
+    13: begin
+      curX := 1;
+    end;
+    32..127: begin
+      while (screen.Count < curY) do begin
+        screen.Add('');
+      end;
+      s := screen[curY - 1];
+      while (Length(s) < curX) do begin
+        s := s + ' ';
+      end;
+      s[curX] := chr(E);
+      screen[curY - 1] := s;
+      Inc(curX);
+    end;
+  end;
+  if (ScreenWidth > 0) and (curX > ScreenWidth) then begin
+    curX := 1;
+    Inc(curY);
+  end;
+  if (ScreenHeight > 0) then begin
+    while (curY > ScreenHeight) do begin
+      ScrollUp();
+    end;
+  end;
+  screenChange := True;
+end;
+
+destructor TStringTerminal.Destroy;
+begin
+  inherited Destroy;
+end;
+
+{ TScreenTerminal }
+
+constructor TScreenTerminal.Create(const sizeX, sizeY: integer);
+begin
+  crt := TFileStream.Create('crt.out', fmCreate);
+  ScreenHeight := SizeY;
+  ScreenWidth := SizeX;
+  SetLength(screen, ScreenHeight, ScreenWidth);
+  tabSize := 8;
+  ClearScreen();
+end;
+
+procedure TScreenTerminal.ClearScreen();
+var
+  y, x: iSize8;
+begin
+  for y := 0 to ScreenHeight - 1 do begin
+    for x := 0 to ScreenWidth - 1 do begin
+      screen[y, x] := ' ';
+    end;
+  end;
+  curX := 1;
+  curY := 1;
+  screenChange := True;
+end;
+
+procedure TScreenTerminal.ScrollUp();
+var
+  y, x: iSize8;
+begin
+  for y := 0 to ScreenHeight - 2 do begin
+    for x := 0 to ScreenWidth - 1 do begin
+      screen[y, x] := screen[y + 1, x];
+    end;
+  end;
+  for x := 0 to ScreenWidth - 1 do begin
+    screen[ScreenHeight - 1, x] := ' ';
+  end;
+  Dec(curY);
+  if (curY < 1) then begin
+    curY := 1;
+  end;
+  screenChange := True;
+end;
+
+procedure TScreenTerminal.WriteChar(E: iSize8);
+begin
+  crt.WriteByte(E);
+  case E of
+    9: begin
+      curX := ((curX + tabSize) and $F8);
+    end;
+    10: begin
+      Inc(curY);
+    end;
+    12: begin
+      ClearScreen();
+    end;
+    13: begin
+      curX := 1;
+    end;
+    32..127: begin
+      screen[curY - 1, curX - 1] := chr(E);
+      Inc(curX);
+    end;
+  end;
+  if (curX > ScreenWidth) then begin
+    curX := 1;
+    Inc(curY);
+  end;
+  while (curY > ScreenHeight) do begin
+    ScrollUp();
+  end;
+  screenChange := True;
+end;
+
+destructor TScreenTerminal.Destroy;
+begin
+  inherited Destroy;
+  FreeAndNil(crt);
+end;
+
 { TToolkitCPM }
 
-
-constructor TToolkitCPM.Create(aCPU: TCPU_8080);
+constructor TToolkitCPM.Create(aCPU: TCPU_8080; aTerm: ITerminal);
 begin
   cpu := aCPU;
   oCallOpcode := aCPU.ReplaceOpCode($CD, @CallInterceptor);
-  crt := TFileStream.Create('crt.out', fmCreate);
-  InitTerminal();
+  term := aTerm;
+  charDelim := Ord('$');
 end;
 
 destructor TToolkitCPM.Destroy;
 begin
   inherited Destroy;
-  FreeAndNil(crt);
 end;
 
 procedure TToolkitCPM.CallInterceptor();
@@ -89,8 +272,7 @@ var
 begin
   oCallOpcode();
   case cpu.rPC of
-    BDOS_ADDR:
-    begin
+    BDOS_ADDR: begin
       msg.ID := cpu.rC;
       msg.DE := cpu.rDE;
       msg.done := False;
@@ -99,85 +281,13 @@ begin
   end;
 end;
 
-procedure TToolkitCPM.InitTerminal();
-begin
-  charDelim := Ord('$');
-  tabSize := 8;
-  ClearScreen();
-end;
-
-procedure TToolkitCPM.ClearScreen();
-begin
-  FillChar(screen, sizeOf(screen), ' ');
-  curX := 1;
-  curY := 1;
-  screenChange := True;
-end;
-
-procedure TToolkitCPM.ScrollUp();
-var
-  y, x: iSize8;
-begin
-  for y := 1 to SCREEN_HEIGHT - 1 do
-  begin
-    for x := 1 to SCREEN_WIDTH do
-    begin
-      screen[y, x] := screen[y + 1, x];
-    end;
-  end;
-  for x := 1 to SCREEN_WIDTH do
-  begin
-    screen[SCREEN_HEIGHT, x] := ' ';
-  end;
-  Dec(curY);
-  if (curY < 1) then
-    curY := 1;
-  screenChange := True;
-end;
-
-procedure TToolkitCPM.WriteChar(E: iSize8);
-begin
-  crt.WriteByte(E);
-  case E of
-    9:
-    begin
-      curX := ((curX + tabSize) and $F8);
-    end;
-    10:
-    begin
-      Inc(curY);
-    end;
-    12:
-    begin
-      ClearScreen();
-    end;
-    13:
-    begin
-      curX := 1;
-    end;
-    32..127:
-    begin
-      screen[curY, curX] := chr(E);
-      Inc(curX);
-    end;
-  end;
-  if (curX > SCREEN_WIDTH) then
-  begin
-    curX := 1;
-    Inc(curY);
-  end;
-  while (curY > SCREEN_HEIGHT) do
-    ScrollUp();
-  screenChange := True;
-end;
-
 procedure TToolkitCPM.C_WRITE(var message: BDOSMessage);
 // Print character in E
 var
   E: iSize8;
 begin
   E := message.DE and $00FF;
-  WriteChar(E);
+  term.WriteChar(E);
   cpu.rPC := cpu.StackPull();
 end;
 
@@ -193,9 +303,10 @@ begin
   repeat
     c := cpu.ReadMem(addr);
     addr := (addr + 1) and $FFFF;
-    if c = charDelim then
+    if c = charDelim then begin
       break;
-    WriteChar(c);
+    end;
+    term.WriteChar(c);
     Inc(cnt);
   until (cnt > $FFFF);
   cpu.rPC := cpu.StackPull();

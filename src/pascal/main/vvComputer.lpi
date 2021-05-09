@@ -102,7 +102,7 @@
         <PackageName Value="LCL"/>
       </Item1>
     </RequiredPackages>
-    <Units Count="17">
+    <Units Count="18">
       <Unit0>
         <Filename Value="vvComputer.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -167,16 +167,23 @@
         <IsPartOfProject Value="True"/>
       </Unit14>
       <Unit15>
-        <Filename Value="toolkit\FTerminal.pas"/>
-        <IsPartOfProject Value="True"/>
-        <ComponentName Value="fmTerminal"/>
-        <HasResources Value="True"/>
-        <ResourceBaseClass Value="Form"/>
-      </Unit15>
-      <Unit16>
         <Filename Value="lib\uMisc.pas"/>
         <IsPartOfProject Value="True"/>
+      </Unit15>
+      <Unit16>
+        <Filename Value="toolkit\uStringTerminal.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="FStringTerminal"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
       </Unit16>
+      <Unit17>
+        <Filename Value="toolkit\uScreenTerminal.pas"/>
+        <IsPartOfProject Value="True"/>
+        <ComponentName Value="FScreenTerminal"/>
+        <HasResources Value="True"/>
+        <ResourceBaseClass Value="Form"/>
+      </Unit17>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

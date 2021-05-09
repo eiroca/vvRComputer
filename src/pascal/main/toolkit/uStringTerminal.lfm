@@ -1,0 +1,35 @@
+object FStringTerminal: FStringTerminal
+  Left = 1034
+  Height = 326
+  Top = 118
+  Width = 524
+  Caption = 'Terminal'
+  ClientHeight = 326
+  ClientWidth = 524
+  Font.CharSet = ANSI_CHARSET
+  Font.Color = clBlack
+  Font.Height = -11
+  Font.Name = 'Courier New'
+  Font.Pitch = fpFixed
+  Font.Quality = fqDraft
+  OnCloseQuery = FormCloseQuery
+  LCLVersion = '2.0.12.0'
+  object mOut: TMemo
+    Left = 0
+    Height = 326
+    Top = 0
+    Width = 524
+    Align = alClient
+    Lines.Strings = (
+      'mOut'
+    )
+    ScrollBars = ssAutoBoth
+    TabOrder = 0
+  end
+  object tAutoRefresh: TTimer
+    Interval = 500
+    OnTimer = tAutoRefreshTimer
+    Left = 102
+    Top = 75
+  end
+end

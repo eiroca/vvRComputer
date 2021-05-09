@@ -31,7 +31,6 @@ type
   ReadSerialCall = function(): boolean of object;
   WriteSerialCall = procedure(d: boolean) of object;
 
-
 const
   Flag_C = 0;
   Flag_V = 1; // 8085 only
@@ -562,8 +561,8 @@ begin
   FlagsFromByte(%00000010);
   state := active;
   FIRQAllowed := False;
-  _opers := 0;
-  _cycles := 0;
+  FOpers := 0;
+  FCycles := 0;
 end;
 
 procedure TCPU_8080.StackPush(w: iSize16);
@@ -588,7 +587,8 @@ end;
 procedure TCPU_8080.UpdateCPUStatus(fillExtra: boolean = True);
 var
   i: integer;
-begin;
+begin
+  ;
   with FStatus do begin
     regs[0] := A;
     regs[1] := B;
@@ -615,7 +615,8 @@ begin;
 end;
 
 procedure TCPU_8080.UpdateCPUInfo();
-begin;
+begin
+  ;
   with FInfo do begin
     dataSize := 8;
     addrSize := 16;
@@ -650,7 +651,9 @@ var
 begin
   Result := 0;
   for i := 0 to 7 do begin
-    if F[i] then Result := Result or bit_val[i];
+    if F[i] then begin
+      Result := Result or bit_val[i];
+    end;
   end;
 end;
 
@@ -706,18 +709,36 @@ end;
 
 procedure TCPU_8080.DoIRQ(int: integer);
 begin
-  if (state = wait) then state := active;
+  if (state = wait) then begin
+    state := active;
+  end;
   FIRQs[int].active := False;
   push_PC();
   case (int) of
-    0: PC := $0000;
-    1: PC := $0008;
-    2: PC := $0010;
-    3: PC := $0018;
-    4: PC := $0020;
-    5: PC := $0028;
-    6: PC := $0030;
-    7: PC := $0038;
+    0: begin
+      PC := $0000;
+    end;
+    1: begin
+      PC := $0008;
+    end;
+    2: begin
+      PC := $0010;
+    end;
+    3: begin
+      PC := $0018;
+    end;
+    4: begin
+      PC := $0020;
+    end;
+    5: begin
+      PC := $0028;
+    end;
+    6: begin
+      PC := $0030;
+    end;
+    7: begin
+      PC := $0038;
+    end;
     else begin
       PC := $0000;
     end;
@@ -731,7 +752,7 @@ begin
   addr := addr_abs();
   push_PC();
   PC := addr;
-  Inc(_cycles, c);
+  Inc(FCycles, c);
 end;
 
 procedure TCPU_8080.UpdateZPS(const t: iSize8);
@@ -857,7 +878,9 @@ procedure TCPU_8080.op_HLT;
 begin
   PC := (PC - 1) and $FFFF;
   state := stop;
-  if assigned(OnHalt) then OnHalt;
+  if assigned(OnHalt) then begin
+    OnHalt;
+  end;
 end;
 
 procedure TCPU_8080.op_IN;
@@ -865,7 +888,9 @@ var
   MV: uint8;
 begin
   MV := imm8();
-  if Assigned(ReadIO) then  A := ReadIO(MV);
+  if Assigned(ReadIO) then begin
+    A := ReadIO(MV);
+  end;
 end;
 
 procedure TCPU_8080.op_OUT;
@@ -873,7 +898,9 @@ var
   MV: uint8;
 begin
   MV := imm8();
-  if Assigned(WriteIO) then  WriteIO(MV, A);
+  if Assigned(WriteIO) then begin
+    WriteIO(MV, A);
+  end;
 end;
 
 procedure TCPU_8080.op_CMC;
@@ -1127,7 +1154,7 @@ procedure TCPU_8080.op_RM;
 begin
   if (F[Flag_S]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -1135,7 +1162,7 @@ procedure TCPU_8080.op_RPE;
 begin
   if (F[Flag_P]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -1143,7 +1170,7 @@ procedure TCPU_8080.op_RC;
 begin
   if (F[Flag_C]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -1151,7 +1178,7 @@ procedure TCPU_8080.op_RNC;
 begin
   if (not F[Flag_C]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -1159,7 +1186,7 @@ procedure TCPU_8080.op_RZ;
 begin
   if (F[Flag_Z]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -1167,7 +1194,7 @@ procedure TCPU_8080.op_RNZ;
 begin
   if (not F[Flag_Z]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -1175,7 +1202,7 @@ procedure TCPU_8080.op_RPO;
 begin
   if (not F[Flag_P]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -1183,7 +1210,7 @@ procedure TCPU_8080.op_RP;
 begin
   if (not F[Flag_S]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -2537,7 +2564,9 @@ begin
   correction := 0;
   lsb := A and $0F;
   msb := A shr 4;
-  if (F[Flag_A] or (lsb > 9)) then  correction += $06;
+  if (F[Flag_A] or (lsb > 9)) then begin
+    correction += $06;
+  end;
   if (F[Flag_C] or (msb > 9) or ((msb >= 9) and (lsb > 9))) then begin
     correction += $60;
     cy := True;
@@ -2733,7 +2762,8 @@ begin
 end;
 
 procedure TCPU_8085.UpdateCPUInfo();
-begin;
+begin
+  ;
   inherited;
   with FInfo do begin
     flagsName := ['c', 'v', 'p', '-', 'a', 'k', 'z', 's'];
@@ -2745,22 +2775,48 @@ end;
 
 procedure TCPU_8085.DoIRQ(int: integer);
 begin
-  if (state = wait) then state := active;
+  if (state = wait) then begin
+    state := active;
+  end;
   FIRQs[int].active := False;
   push_PC();
   case (int) of
-    0: PC := $0000;
-    1: PC := $003C;
-    2: PC := $0034;
-    3: PC := $002C;
-    4: PC := $0024;
-    5: PC := $0008;
-    6: PC := $0010;
-    7: PC := $0018;
-    8: PC := $0020;
-    9: PC := $0028;
-    10: PC := $0030;
-    11: PC := $0038;
+    0: begin
+      PC := $0000;
+    end;
+    1: begin
+      PC := $003C;
+    end;
+    2: begin
+      PC := $0034;
+    end;
+    3: begin
+      PC := $002C;
+    end;
+    4: begin
+      PC := $0024;
+    end;
+    5: begin
+      PC := $0008;
+    end;
+    6: begin
+      PC := $0010;
+    end;
+    7: begin
+      PC := $0018;
+    end;
+    8: begin
+      PC := $0020;
+    end;
+    9: begin
+      PC := $0028;
+    end;
+    10: begin
+      PC := $0030;
+    end;
+    11: begin
+      PC := $0038;
+    end;
     else begin
       PC := $0000;
     end;
@@ -2911,16 +2967,37 @@ var
   s: boolean;
 begin
   // Read Interrupt Mask and serial data into A
-  if Assigned(ReadSerial) then s := ReadSerial() else s := False;
+  if Assigned(ReadSerial) then begin
+    s := ReadSerial();
+  end
+  else begin
+    s := False;
+  end;
   r := 0;
-  if (s) then r := r or bit_val[7];
-  if (FIRQs[IRQ_RST75].active) then r := r or bit_val[6];
-  if (FIRQs[IRQ_RST65].active) then r := r or bit_val[5];
-  if (FIRQs[IRQ_RST65].active) then r := r or bit_val[4];
-  if FIRQAllowed then r := r or bit_val[3];
-  if (FIRQs[IRQ_RST75].masked) then r := r or bit_val[2];
-  if (FIRQs[IRQ_RST65].masked) then r := r or bit_val[1];
-  if (FIRQs[IRQ_RST65].masked) then r := r or bit_val[0];
+  if (s) then begin
+    r := r or bit_val[7];
+  end;
+  if (FIRQs[IRQ_RST75].active) then begin
+    r := r or bit_val[6];
+  end;
+  if (FIRQs[IRQ_RST65].active) then begin
+    r := r or bit_val[5];
+  end;
+  if (FIRQs[IRQ_RST65].active) then begin
+    r := r or bit_val[4];
+  end;
+  if FIRQAllowed then begin
+    r := r or bit_val[3];
+  end;
+  if (FIRQs[IRQ_RST75].masked) then begin
+    r := r or bit_val[2];
+  end;
+  if (FIRQs[IRQ_RST65].masked) then begin
+    r := r or bit_val[1];
+  end;
+  if (FIRQs[IRQ_RST65].masked) then begin
+    r := r or bit_val[0];
+  end;
   A := r;
 end;
 
@@ -2935,7 +3012,9 @@ begin
     s := (r and bit_val[7]) <> 0;
     WriteSerial(s);
   end;
-  if ((r and bit_val[4]) <> 0) then FIRQs[IRQ_RST75].active := False;
+  if ((r and bit_val[4]) <> 0) then begin
+    FIRQs[IRQ_RST75].active := False;
+  end;
   if ((r and bit_val[3]) <> 0) then begin
     FIRQs[IRQ_RST75].masked := ((r and bit_val[2]) <> 0);
     FIRQs[IRQ_RST65].masked := ((r and bit_val[1]) <> 0);
@@ -2992,7 +3071,7 @@ begin
   if (F[Flag_V]) then begin
     push_PC();
     PC := $0040;
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3003,7 +3082,7 @@ procedure TCPU_8085.op_JNK;
 begin
   if (not F[Flag_K]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3014,7 +3093,7 @@ procedure TCPU_8085.op_JK;
 begin
   if (F[Flag_K]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3031,7 +3110,9 @@ procedure TCPU_8085.op_HLT;
 begin
   PC := (PC - 1) and $FFFF;
   state := stop;
-  if assigned(OnHalt) then OnHalt;
+  if assigned(OnHalt) then begin
+    OnHalt;
+  end;
 end;
 
 procedure TCPU_8085.op_RST_75;
@@ -3062,7 +3143,7 @@ procedure TCPU_8085.op_JC;
 begin
   if (F[Flag_C]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3073,7 +3154,7 @@ procedure TCPU_8085.op_JNC;
 begin
   if (not F[Flag_C]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3084,7 +3165,7 @@ procedure TCPU_8085.op_JZ;
 begin
   if (F[Flag_Z]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3095,7 +3176,7 @@ procedure TCPU_8085.op_JNZ;
 begin
   if (not F[Flag_Z]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3106,7 +3187,7 @@ procedure TCPU_8085.op_JM;
 begin
   if (F[Flag_S]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3117,7 +3198,7 @@ procedure TCPU_8085.op_JP;
 begin
   if (not F[Flag_S]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3128,7 +3209,7 @@ procedure TCPU_8085.op_JPE;
 begin
   if (F[Flag_P]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3139,7 +3220,7 @@ procedure TCPU_8085.op_JPO;
 begin
   if (not F[Flag_P]) then begin
     imm_PC();
-    Inc(_cycles, 1);
+    Inc(FCycles, 1);
   end
   else begin
     PC := (PC + 2) and $FFFF;
@@ -3230,7 +3311,7 @@ procedure TCPU_8085.op_RM;
 begin
   if (F[Flag_S]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3238,7 +3319,7 @@ procedure TCPU_8085.op_RPE;
 begin
   if (F[Flag_P]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3246,7 +3327,7 @@ procedure TCPU_8085.op_RC;
 begin
   if (F[Flag_C]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3254,7 +3335,7 @@ procedure TCPU_8085.op_RNC;
 begin
   if (not F[Flag_C]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3262,7 +3343,7 @@ procedure TCPU_8085.op_RZ;
 begin
   if (F[Flag_Z]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3270,7 +3351,7 @@ procedure TCPU_8085.op_RNZ;
 begin
   if (not F[Flag_Z]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3278,7 +3359,7 @@ procedure TCPU_8085.op_RPO;
 begin
   if (not F[Flag_P]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3286,7 +3367,7 @@ procedure TCPU_8085.op_RP;
 begin
   if (not F[Flag_S]) then begin
     pull_PC();
-    Inc(_cycles, 2);
+    Inc(FCycles, 2);
   end;
 end;
 
@@ -3297,7 +3378,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + A + cy;
   UpdateFlag_ADD(t, A, A);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADC_B;
@@ -3307,7 +3388,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + B + cy;
   UpdateFlag_ADD(t, A, B);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADC_C;
@@ -3317,7 +3398,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + C + cy;
   UpdateFlag_ADD(t, A, C);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADC_D;
@@ -3327,7 +3408,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + D + cy;
   UpdateFlag_ADD(t, A, D);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADC_E;
@@ -3337,7 +3418,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + E + cy;
   UpdateFlag_ADD(t, A, E);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADC_H;
@@ -3347,7 +3428,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + H + cy;
   UpdateFlag_ADD(t, A, H);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADC_L;
@@ -3357,7 +3438,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + L + cy;
   UpdateFlag_ADD(t, A, L);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADC_M;
@@ -3370,7 +3451,7 @@ begin
   v := ReadMem(HL);
   t := A + v + cy;
   UpdateFlag_ADD(t, A, v);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ACI;
@@ -3381,7 +3462,7 @@ begin
   cy := bool_bit[F[Flag_C]];
   t := A + v + cy;
   UpdateFlag_ADD(t, A, v);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_A;
@@ -3391,7 +3472,7 @@ begin
   // Add A to A
   t := A + A;
   UpdateFlag_ADD(t, A, A);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_B;
@@ -3401,7 +3482,7 @@ begin
   // Add B to A
   t := A + B;
   UpdateFlag_ADD(t, A, B);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_C;
@@ -3411,7 +3492,7 @@ begin
   // Add C to A
   t := A + C;
   UpdateFlag_ADD(t, A, C);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_D;
@@ -3421,7 +3502,7 @@ begin
   // Add D to A
   t := A + D;
   UpdateFlag_ADD(t, A, D);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_E;
@@ -3431,7 +3512,7 @@ begin
   // Add E to A
   t := A + E;
   UpdateFlag_ADD(t, A, E);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_H;
@@ -3441,7 +3522,7 @@ begin
   // Add H to A
   t := A + H;
   UpdateFlag_ADD(t, A, H);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_L;
@@ -3451,7 +3532,7 @@ begin
   // Add L to A
   t := A + L;
   UpdateFlag_ADD(t, A, L);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADD_M;
@@ -3464,7 +3545,7 @@ begin
   v := ReadMem(HL);
   t := A + v;
   UpdateFlag_ADD(t, A, v);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_ADI;
@@ -3475,7 +3556,7 @@ begin
   v := imm8();
   t := A + v;
   UpdateFlag_ADD(t, A, v);
-  A:= t;
+  A := t;
 end;
 
 procedure TCPU_8085.op_DAD_B;
@@ -3743,7 +3824,7 @@ var
   t, cy: iSize8;
 begin
   cy := bool_bit[F[Flag_C]];
-  t:= -cy;
+  t := -cy;
   UpdateFlag_SUB(t, A, A);
   A := t;
 end;
@@ -4217,7 +4298,9 @@ begin
   correction := 0;
   lsb := A and $0F;
   msb := A shr 4;
-  if (F[Flag_A] or (lsb > 9)) then  correction += $06;
+  if (F[Flag_A] or (lsb > 9)) then begin
+    correction += $06;
+  end;
   if (F[Flag_C] or (msb > 9) or ((msb >= 9) and (lsb > 9))) then begin
     correction += $60;
     cy := True;
@@ -4283,4 +4366,3 @@ end;
 
 
 end.
-

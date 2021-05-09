@@ -1,4 +1,4 @@
-object fmTerminal: TfmTerminal
+object FScreenTerminal: FScreenTerminal
   Left = 1034
   Height = 326
   Top = 118
@@ -12,11 +12,11 @@ object fmTerminal: TfmTerminal
   Font.Quality = fqDraft
   OnCloseQuery = FormCloseQuery
   OnCreate = FormCreate
-  LCLVersion = '2.0.10.0'
+  LCLVersion = '2.0.12.0'
   object tAutoRefresh: TTimer
     Interval = 200
     OnTimer = tAutoRefreshTimer
-    Left = 74
+    Left = 72
     Top = 47
   end
 end

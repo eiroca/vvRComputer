@@ -188,8 +188,8 @@ type
   protected
     // Emulator data
     OpCodes: array of ROpcode;
-    _opers: int64;
-    _cycles: int64;
+    FOpers: int64;
+    FCycles: int64;
   protected
     FState: ECPUState;
     FIRQAllowed: boolean;
@@ -238,6 +238,9 @@ type
     procedure ClearBreakPoints();
     procedure AddBreakPoint(const addr: AddrType; call: BreakPointHook);
     function ReplaceOpCode(const opcode: integer; call: OpCodeCall): OpcodeCall;
+  public
+    property Opers: int64 read FOpers;
+    property Cycles: int64 read FCycles;
   end;
 
 
@@ -710,8 +713,8 @@ begin
   Result := @OpCodes[ReadMem(PC)];
   PC := (PC + 1) and $FFFF;
   Result^.code();
-  Inc(_opers);
-  Inc(_cycles, Result^.cycle);
+  Inc(FOpers);
+  Inc(FCycles, Result^.cycle);
 end;
 
 function TCPU.Disassemble(var addr: AddrType; const endAddr: AddrType; instList: TInstructionList; memMap: TMemoryMap; steps: integer = -1): integer;
