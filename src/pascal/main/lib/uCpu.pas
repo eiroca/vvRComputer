@@ -211,7 +211,7 @@ type
   protected // Abstract
     procedure UpdateCPUInfo; virtual; abstract;
     procedure UpdateCPUStatus(fillExtra: boolean = True); virtual; abstract;
-    function DecodeOpcode: POpcode; virtual; abstract;
+    function ExecuteOpcode: POpcode; virtual; abstract;
     procedure DecodeInst(var addr: AddrType; var inst: RInstuction; incAddr: boolean = True); virtual; abstract;
   protected // property Getter/Setter
     procedure SetIRQ(int: integer; active: boolean);
@@ -267,7 +267,7 @@ type
     property ReadMem: Read8Memory16Call read FReadMem write FReadMem;
     property WriteMem: Write8Memory16Call read FWriteMem write FWriteMem;
   public
-    function DecodeOpcode: POpcode; override;
+    function ExecuteOpcode: POpcode; override;
     procedure DecodeInst(var addr: iSize16; var inst: RInstuction; incAddr: boolean = True); override;
   end;
 
@@ -664,6 +664,21 @@ begin
   end;
 end;
 
+function TCPU.Run(var addr: AddrType; steps: integer = -1): integer;
+begin
+  state := active;
+  Result := 0;
+  PC := addr;
+  while (state <> stop) and ((steps < 0) or (Result < steps)) do begin
+    if (Result mod 4096) = 0 then begin
+      Application.ProcessMessages;
+    end;
+    Result := (Result + 1) and $8FFFFFFF;
+    Step();
+  end;
+  addr := PC;
+end;
+
 procedure TCPU.Step();
 var
   opcode: POpcode;
@@ -680,7 +695,7 @@ begin
   end;
   if state = active then begin
     // No IRQs execute a opcode
-    opcode := DecodeOpcode;
+    opcode := ExecuteOpcode();
   end;
   if Assigned(FTraceEvent) then begin
     if (opcode <> nil) then begin
@@ -693,22 +708,7 @@ begin
   end;
 end;
 
-function TCPU.Run(var addr: AddrType; steps: integer = -1): integer;
-begin
-  state := active;
-  Result := 0;
-  PC := addr;
-  while (state <> stop) and ((steps < 0) or (Result < steps)) do begin
-    if (Result mod 4096) = 0 then begin
-      Application.ProcessMessages;
-    end;
-    Result := (Result + 1) and $8FFFFFFF;
-    Step();
-  end;
-  addr := PC;
-end;
-
-function TCPU_ClassA.DecodeOpcode: POpcode;
+function TCPU_ClassA.ExecuteOpcode: POpcode;
 begin
   Result := @OpCodes[ReadMem(PC)];
   PC := (PC + 1) and $FFFF;
